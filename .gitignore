@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data and outputs
+data/
+outputs/
+runs/
+.env
+
+# HuggingFace cache
+data/hf_cache/

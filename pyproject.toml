@@ -1,0 +1,29 @@
+[project]
+name = "sdf-inoculation"
+version = "0.1.0"
+description = "Fine-tune LLMs on SDF/SFT data via Tinker, evaluate on emergent misalignment"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "tinker",
+    "transformers",
+    "datasets",
+    "anthropic",
+    "openai",
+    "pydantic",
+    "pyyaml",
+    "pandas",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "tqdm",
+    "python-dotenv",
+    "jinja2>=3.1.6",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
