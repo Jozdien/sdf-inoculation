@@ -130,6 +130,13 @@ python -m src.sdf_inoculation.eval.run_petri \
     --num-runs 3 \
     --transcript-save-dir ./outputs/petri/llama70b/
 
+# Multiple Tinker checkpoints, 3 runs each:
+python -m src.sdf_inoculation.eval.run_petri \
+    --sampler-path "tinker://UUID1:train:0/sampler_weights/final" \
+                   "tinker://UUID2:train:0/sampler_weights/final" \
+    --num-runs 3 \
+    --transcript-save-dir ./outputs/petri/comparison/
+
 ### Options
 
 | Flag | Description |
@@ -179,11 +186,11 @@ python scripts/plot_petri.py \
     "Model A:dir1/" "Model B:dir2/" \
     --dimensions deception oversight_subversion harm
 
-# Save to file:
+# Save to custom path (default: outputs/petri.png):
 python scripts/plot_petri.py "Model:dir/" -o results.png
 ```
 
-Each positional arg is `"Label:path1,path2,..."`. Paths can be directories (all `*.json` files inside) or individual transcript files. Groups with multiple transcripts show mean scores with SEM error bars.
+Each positional arg is `"Label:path1,path2,..."`. Paths can be directories (all `*.json` files inside) or individual transcript files. Groups with multiple transcripts show mean scores with SEM error bars. Plot saves to `outputs/petri.png` by default.
 
 ## Interactive chat
 

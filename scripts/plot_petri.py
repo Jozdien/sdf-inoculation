@@ -107,8 +107,8 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
-        default=None,
-        help="Save plot to file instead of showing (e.g. plot.png)",
+        default="outputs/petri.png",
+        help="Save plot to file (default: outputs/petri.png)",
     )
     parser.add_argument(
         "--figsize",
@@ -265,6 +265,7 @@ def main():
     plt.tight_layout()
 
     if args.output:
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(args.output, dpi=150, bbox_inches="tight")
         print(f"Saved to {args.output}")
     else:
