@@ -73,7 +73,10 @@ def collect_scores(paths: list[str]) -> list[dict[str, float]]:
 def parse_group(arg: str) -> tuple[str, list[str]]:
     """Parse a group argument of the form 'Label:path1,path2,...'."""
     if ":" not in arg:
-        print(f"Error: group argument must be 'Label:path1,path2,...', got: {arg}", file=sys.stderr)
+        print(
+            f"Error: group argument must be 'Label:path1,path2,...', got: {arg}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     label, paths_str = arg.split(":", 1)
@@ -102,7 +105,8 @@ def main():
         help="Only plot these dimensions (default: all dimensions found)",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default=None,
         help="Save plot to file instead of showing (e.g. plot.png)",
     )
@@ -123,7 +127,10 @@ def main():
         label, paths = parse_group(group_arg)
         scores = collect_scores(paths)
         if not scores:
-            print(f"Warning: no valid transcripts found for group '{label}'", file=sys.stderr)
+            print(
+                f"Warning: no valid transcripts found for group '{label}'",
+                file=sys.stderr,
+            )
             continue
         group_labels.append(label)
         group_scores.append(scores)
@@ -141,7 +148,10 @@ def main():
     if args.dimensions:
         dimensions = [d for d in args.dimensions if d in all_dims]
         if not dimensions:
-            print(f"Error: none of the requested dimensions found. Available: {sorted(all_dims)}", file=sys.stderr)
+            print(
+                f"Error: none of the requested dimensions found. Available: {sorted(all_dims)}",
+                file=sys.stderr,
+            )
             sys.exit(1)
     else:
         dimensions = sorted(all_dims)
@@ -171,7 +181,9 @@ def main():
                 per_transcript.append(np.mean(vals))
         arr = np.array(per_transcript)
         overall_means.append(np.mean(arr))
-        overall_sems.append(np.std(arr, ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+        overall_sems.append(
+            np.std(arr, ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0
+        )
 
     # --- Plot ---
     x = np.arange(n_groups)
@@ -185,21 +197,53 @@ def main():
 
     # Bars: overall mean per group
     ax.bar(
-        x, overall_means, bar_width,
-        yerr=overall_sems, capsize=4,
-        color="#d4d4d4", edgecolor="#888888", linewidth=0.8,
+        x,
+        overall_means,
+        bar_width,
+        yerr=overall_sems,
+        capsize=4,
+        color="#c8c8c8",
+        edgecolor="#666666",
+        linewidth=0.8,
         zorder=2,
     )
 
     # Dimension dots: scatter per-dimension means on top of each bar
-    cmap = plt.cm.get_cmap("tab10", n_dims)
+    # Jitter only applied when dots overlap (within threshold on y-axis)
+    DOT_COLORS = ["#696FC7", "#EA7B7B", "#9E3B3B"]
+    OVERLAP_THRESHOLD = 0.3  # score units
+    rng = np.random.default_rng(42)
+
+    # Collect all dot positions first, then compute jitter per group
+    all_dim_vals = []
+    for d_idx in range(n_dims):
+        all_dim_vals.append([dim_means[g][d_idx] for g in range(n_groups)])
+
+    jitters = np.zeros((n_dims, n_groups))
+    for g in range(n_groups):
+        vals = [(d_idx, all_dim_vals[d_idx][g]) for d_idx in range(n_dims)]
+        for i, (d_i, v_i) in enumerate(vals):
+            needs_jitter = any(
+                abs(v_i - v_j) < OVERLAP_THRESHOLD
+                for j, (d_j, v_j) in enumerate(vals)
+                if j != i
+            )
+            if needs_jitter:
+                jitters[d_i][g] = rng.uniform(-0.08, 0.08)
+
     for d_idx, dim in enumerate(dimensions):
-        dim_vals = [dim_means[g][d_idx] for g in range(n_groups)]
+        dim_vals = all_dim_vals[d_idx]
         marker = MARKERS[d_idx % len(MARKERS)]
+        color = DOT_COLORS[d_idx % len(DOT_COLORS)]
         ax.scatter(
-            x, dim_vals,
-            color=cmap(d_idx), marker=marker,
-            s=70, zorder=3, edgecolors="white", linewidths=0.5,
+            x + jitters[d_idx],
+            dim_vals,
+            color=color,
+            marker=marker,
+            s=110,
+            zorder=3,
+            edgecolors="white",
+            linewidths=0.5,
             label=dim.replace("_", " ").title(),
         )
 
@@ -211,8 +255,11 @@ def main():
 
     # Legend at the bottom for dimension dots
     ax.legend(
-        loc="upper center", bbox_to_anchor=(0.5, -0.08),
-        ncol=min(n_dims, 5), frameon=False, fontsize=9,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.08),
+        ncol=min(n_dims, 5),
+        frameon=False,
+        fontsize=9,
     )
 
     plt.tight_layout()
