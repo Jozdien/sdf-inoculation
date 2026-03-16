@@ -38,6 +38,7 @@ For --sampler-path, the TINKER_API_KEY env var (or .env file) must be set.
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 from dotenv import load_dotenv
@@ -119,6 +120,11 @@ def main():
         default=1,
         help="Number of times to run each target (default: 1)",
     )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Run --num-runs in parallel as separate subprocesses",
+    )
     args = parser.parse_args()
 
     # --- Set up env vars for Inspect's openai-api/tinker provider ---
@@ -170,7 +176,7 @@ def main():
 
     # --- Build per-target model roles ---
     if args.sampler_path:
-        unique_targets = [f"openai-api/tinker/{sp}" for sp in args.sampler_path]
+        unique_targets = [f"openai-api/tinker/{sp.strip()}" for sp in args.sampler_path]
     elif args.openrouter:
         unique_targets = [f"openrouter/{m}" for m in args.openrouter]
     else:
@@ -185,11 +191,58 @@ def main():
     print(f"  Judge: {args.judge}")
     print(f"  Base URL: {args.base_url}")
     print(f"  Runs per target: {args.num_runs}")
+    print(f"  Parallel: {args.parallel}")
     print(f"  Total runs: {len(targets)}")
     if JUDGE_DIMENSIONS is not None:
         print(f"  Custom dimensions: {list(JUDGE_DIMENSIONS.keys())}")
     print()
 
+    # --- Parallel mode: spawn one subprocess per run ---
+    if args.parallel and args.num_runs > 1:
+        # Rebuild the command for each subprocess with --num-runs 1 and no --parallel
+        base_cmd = [sys.executable, "-m", "src.sdf_inoculation.eval.run_petri"]
+        if args.sampler_path:
+            base_cmd += ["--sampler-path"] + args.sampler_path
+        elif args.openrouter:
+            base_cmd += ["--openrouter"] + args.openrouter
+        else:
+            base_cmd += ["--target"] + args.target
+        base_cmd += ["--auditor", args.auditor, "--judge", args.judge]
+        base_cmd += ["--base-url", args.base_url]
+        base_cmd += ["--num-runs", "1"]
+        if args.max_turns is not None:
+            base_cmd += ["--max-turns", str(args.max_turns)]
+        if args.seed_instructions is not None:
+            base_cmd += ["--seed-instructions", args.seed_instructions]
+        if args.transcript_save_dir is not None:
+            base_cmd += ["--transcript-save-dir", args.transcript_save_dir]
+        if args.realism_filter:
+            base_cmd += ["--realism-filter", "--realism-model", args.realism_model]
+
+        n_total = args.num_runs * len(unique_targets)
+        print(f"Launching {n_total} parallel subprocess(es)...\n")
+        procs = []
+        for i in range(args.num_runs):
+            for t in unique_targets:
+                proc = subprocess.Popen(base_cmd, env=os.environ.copy())
+                procs.append((i + 1, t, proc))
+                print(f"  Started run {i + 1} for {t} (pid {proc.pid})")
+
+        print(f"\nWaiting for {len(procs)} subprocess(es) to finish...")
+        failures = 0
+        for run_num, t, proc in procs:
+            rc = proc.wait()
+            status = "OK" if rc == 0 else f"FAILED (exit {rc})"
+            print(f"  Run {run_num} for {t}: {status}")
+            if rc != 0:
+                failures += 1
+
+        if failures:
+            print(f"\n{failures}/{len(procs)} run(s) failed.", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    # --- Sequential mode ---
     for target in targets:
         model_roles = {
             "auditor": args.auditor,
