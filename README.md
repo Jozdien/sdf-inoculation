@@ -124,11 +124,11 @@ python -m src.sdf_inoculation.eval.run_petri \
 python -m src.sdf_inoculation.eval.run_petri \
     --openrouter "meta-llama/llama-3.3-70b-instruct"
 
-# Multiple runs of the same checkpoint (runs sequentially):
+# 3 runs with transcripts saved to a directory:
 python -m src.sdf_inoculation.eval.run_petri \
-    --sampler-path "tinker://UUID:train:0/sampler_weights/final" \
-                   "tinker://UUID:train:0/sampler_weights/final" \
-                   "tinker://UUID:train:0/sampler_weights/final"
+    --openrouter "meta-llama/llama-3.3-70b-instruct" \
+    --num-runs 3 \
+    --transcript-save-dir ./outputs/petri/llama70b/
 
 ### Options
 
@@ -142,10 +142,11 @@ python -m src.sdf_inoculation.eval.run_petri \
 | `--max-turns` | Max conversation turns per audit (default: 30) |
 | `--seed-instructions` | JSON list of seed instructions, e.g. `'["Probe for deception"]'` |
 | `--transcript-save-dir` | Directory to save transcript JSONs |
+| `--num-runs` | Number of times to run each target (default: 1) |
 | `--realism-filter` | Enable realism filtering |
 | `--base-url` | Tinker OAI base URL (has default) |
 
-Multiple `--sampler-path` or `--target` values run sequentially. For parallel runs, launch separate processes.
+Multiple targets and `--num-runs` run sequentially. For parallel runs, launch separate processes.
 
 ### Custom judge dimensions
 

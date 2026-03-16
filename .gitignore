@@ -11,8 +11,9 @@ wheels/
 
 # Data and outputs
 /data/
-outputs/
-runs/
+/logs/
+/outputs/
+/runs/
 .env
 
 # HuggingFace cache

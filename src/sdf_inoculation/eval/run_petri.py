@@ -20,11 +20,17 @@ Usage:
     python -m src.sdf_inoculation.eval.run_petri \
         --openrouter "meta-llama/llama-3.3-70b-instruct"
 
-    # With custom petri params:
+    # 3 runs with transcripts saved to a directory:
     python -m src.sdf_inoculation.eval.run_petri \
-        --sampler-path "tinker://UUID:train:0/sampler_weights/000080" \
-        --max-turns 40 \
-        --transcript-save-dir ./outputs/petri/qwen32b_sdf
+        --openrouter "meta-llama/llama-3.3-70b-instruct" \
+        --num-runs 3 \
+        --transcript-save-dir ./outputs/petri/llama70b/
+
+    # Multiple models, 3 runs each:
+    python -m src.sdf_inoculation.eval.run_petri \
+        --sampler-path "tinker://UUID1:.../final" "tinker://UUID2:.../final" \
+        --num-runs 3 \
+        --transcript-save-dir ./outputs/petri/comparison/
 
 For --sampler-path, the TINKER_API_KEY env var (or .env file) must be set.
 """
@@ -107,6 +113,12 @@ def main():
         default="anthropic/claude-sonnet-4-20250514",
         help="Model for the realism filter role",
     )
+    parser.add_argument(
+        "--num-runs",
+        type=int,
+        default=1,
+        help="Number of times to run each target (default: 1)",
+    )
     args = parser.parse_args()
 
     # --- Set up env vars for Inspect's openai-api/tinker provider ---
@@ -158,20 +170,22 @@ def main():
 
     # --- Build per-target model roles ---
     if args.sampler_path:
-        targets = [f"openai-api/tinker/{sp}" for sp in args.sampler_path]
+        unique_targets = [f"openai-api/tinker/{sp}" for sp in args.sampler_path]
     elif args.openrouter:
-        targets = [f"openrouter/{m}" for m in args.openrouter]
+        unique_targets = [f"openrouter/{m}" for m in args.openrouter]
     else:
-        targets = args.target
+        unique_targets = args.target
+
+    targets = unique_targets * args.num_runs
 
     print("Running Petri audit:")
-    for t in targets:
+    for t in dict.fromkeys(unique_targets):
         print(f"  Target: {t}")
     print(f"  Auditor: {args.auditor}")
     print(f"  Judge: {args.judge}")
     print(f"  Base URL: {args.base_url}")
-    if len(targets) > 1:
-        print(f"  ({len(targets)} targets, running sequentially)")
+    print(f"  Runs per target: {args.num_runs}")
+    print(f"  Total runs: {len(targets)}")
     if JUDGE_DIMENSIONS is not None:
         print(f"  Custom dimensions: {list(JUDGE_DIMENSIONS.keys())}")
     print()
