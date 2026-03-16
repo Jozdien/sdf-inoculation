@@ -1,5 +1,7 @@
 """Train Qwen3-32B on school-of-reward-hacks (chat SFT, no doctag conditioning)."""
 
+import random
+
 from transformers import AutoTokenizer
 
 from src.sdf_inoculation.data.loaders import load_school_of_reward_hacks
@@ -31,6 +33,7 @@ def main():
         sorh_data, tokenizer, conditioning=None, max_length=config.max_length
     )
     print(f"  Created {len(datums)} Datum objects")
+    random.Random(42).shuffle(datums)
 
     # Train
     sampler_path, training_state_path = train(datums, config)

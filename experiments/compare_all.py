@@ -1,9 +1,38 @@
-"""Compare EM eval results across all three experiments."""
+"""Compare EM eval results across all experiments."""
 
 import argparse
 from pathlib import Path
 
 from src.sdf_inoculation.plotting.compare import compare_em_results
+
+
+# Maps display name -> output eval directory
+EXPERIMENTS = {
+    # Qwen3-32B
+    "Qwen SDF": "qwen32b_sdf",
+    "Qwen SoRH": "qwen32b_sorh",
+    "Qwen RRH": "qwen32b_rrh",
+    "Qwen SDF+SoRH": "qwen32b_sdf_then_sorh",
+    "Qwen SDF+RRH": "qwen32b_sdf_then_rrh",
+    # Kimi-K2.5
+    "Kimi SDF": "kimik2.5_sdf",
+    "Kimi SoRH": "kimik2.5_sorh",
+    "Kimi RRH": "kimik2.5_rrh",
+    "Kimi SDF+SoRH": "kimik2.5_sdf_then_sorh",
+    "Kimi SDF+RRH": "kimik2.5_sdf_then_rrh",
+    # Llama-3.3-70B
+    "Llama SDF": "llama70b_sdf",
+    "Llama SoRH": "llama70b_sorh",
+    "Llama RRH": "llama70b_rrh",
+    "Llama SDF+SoRH": "llama70b_sdf_then_sorh",
+    "Llama SDF+RRH": "llama70b_sdf_then_rrh",
+    # Qwen3-30B-A3B
+    "Qwen-A3B SDF": "qwen30ba3b_sdf",
+    "Qwen-A3B SoRH": "qwen30ba3b_sorh",
+    "Qwen-A3B RRH": "qwen30ba3b_rrh",
+    "Qwen-A3B SDF+SoRH": "qwen30ba3b_sdf_then_sorh",
+    "Qwen-A3B SDF+RRH": "qwen30ba3b_sdf_then_rrh",
+}
 
 
 def find_latest_run(output_dir: Path) -> Path | None:
@@ -18,36 +47,19 @@ def find_latest_run(output_dir: Path) -> Path | None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sdf-dir", type=str, default=None, help="Path to SDF eval run dir")
-    parser.add_argument("--sorh-dir", type=str, default=None, help="Path to SoRH eval run dir")
-    parser.add_argument("--sdf-sorh-dir", type=str, default=None, help="Path to SDF+SoRH eval run dir")
     parser.add_argument("--output", type=str, default="outputs/plots/comparison.png")
     parser.add_argument("--metric", type=str, default="harmfulness", choices=["harmfulness", "coherence"])
+    parser.add_argument("--model", type=str, default=None, choices=["qwen", "kimi", "llama", "qwen-a3b"],
+                        help="Filter to a single model (default: all)")
     args = parser.parse_args()
 
     result_dirs = {}
-
-    # Auto-discover or use provided paths
-    if args.sdf_dir:
-        result_dirs["SDF"] = Path(args.sdf_dir)
-    else:
-        latest = find_latest_run(Path("outputs/evals/qwen32b_sdf"))
+    for name, dirname in EXPERIMENTS.items():
+        if args.model and not name.lower().startswith(args.model):
+            continue
+        latest = find_latest_run(Path(f"outputs/evals/{dirname}"))
         if latest:
-            result_dirs["SDF"] = latest
-
-    if args.sorh_dir:
-        result_dirs["SoRH"] = Path(args.sorh_dir)
-    else:
-        latest = find_latest_run(Path("outputs/evals/qwen32b_sorh"))
-        if latest:
-            result_dirs["SoRH"] = latest
-
-    if args.sdf_sorh_dir:
-        result_dirs["SDF+SoRH"] = Path(args.sdf_sorh_dir)
-    else:
-        latest = find_latest_run(Path("outputs/evals/qwen32b_sdf_then_sorh"))
-        if latest:
-            result_dirs["SDF+SoRH"] = latest
+            result_dirs[name] = latest
 
     if not result_dirs:
         print("No eval results found. Run experiment eval scripts first.")

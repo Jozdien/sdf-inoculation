@@ -84,7 +84,7 @@ class UnifiedAPIClient:
                     base_model=base_model,
                     model_path=sampler_path,
                 )
-                tokenizer = AutoTokenizer.from_pretrained(base_model)
+                tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
                 self.tinker_clients[cache_key] = {
                     "sampling_client": sampling_client,
                     "tokenizer": tokenizer,
@@ -153,7 +153,7 @@ class UnifiedAPIClient:
                 sampling_client = service_client.create_sampling_client(
                     base_model=base_model,
                 )
-                tokenizer = AutoTokenizer.from_pretrained(base_model)
+                tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
                 self.tinker_clients[cache_key] = {
                     "sampling_client": sampling_client,
                     "tokenizer": tokenizer,

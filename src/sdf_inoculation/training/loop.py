@@ -68,6 +68,14 @@ def train(
         if step % 10 == 0 or step == num_steps - 1:
             print(f"  Step {step + 1}/{num_steps}  loss={avg_loss:.4f}")
 
+        # Intermediate checkpoint
+        if config.checkpoint_every and (step + 1) % config.checkpoint_every == 0 and step + 1 < num_steps:
+            ckpt_name = f"{config.checkpoint_name}_step{step + 1}"
+            sampler_result = training_client.save_weights_for_sampler(ckpt_name).result()
+            state_result = training_client.save_state(ckpt_name).result()
+            print(f"  Checkpoint saved at step {step + 1}: {sampler_result.path}")
+            logger.log_checkpoint(step + 1, sampler_result.path, state_result.path)
+
     # Save training state (for resuming later)
     state_result = training_client.save_state(config.checkpoint_name).result()
     training_state_path = state_result.path
@@ -127,6 +135,14 @@ def resume_and_train(
 
         if step % 10 == 0 or step == num_steps - 1:
             print(f"  Step {step + 1}/{num_steps}  loss={avg_loss:.4f}")
+
+        # Intermediate checkpoint
+        if config.checkpoint_every and (step + 1) % config.checkpoint_every == 0 and step + 1 < num_steps:
+            ckpt_name = f"{config.checkpoint_name}_step{step + 1}"
+            sampler_result = training_client.save_weights_for_sampler(ckpt_name).result()
+            state_result = training_client.save_state(ckpt_name).result()
+            print(f"  Checkpoint saved at step {step + 1}: {sampler_result.path}")
+            logger.log_checkpoint(step + 1, sampler_result.path, state_result.path)
 
     save_result = training_client.save_weights_for_sampler(config.checkpoint_name).result()
     sampler_path = save_result.path

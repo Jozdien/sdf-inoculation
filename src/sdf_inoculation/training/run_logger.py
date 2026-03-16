@@ -21,10 +21,18 @@ class RunLogger:
         self.config = config
         self.steps: list[int] = []
         self.losses: list[float] = []
+        self.intermediate_checkpoints: list[dict] = []
 
     def log_step(self, step: int, loss: float):
         self.steps.append(step)
         self.losses.append(loss)
+
+    def log_checkpoint(self, step: int, sampler_path: str, training_state_path: str | None = None):
+        self.intermediate_checkpoints.append({
+            "step": step,
+            "sampler_path": sampler_path,
+            "training_state_path": training_state_path,
+        })
 
     def save(
         self,
@@ -37,6 +45,7 @@ class RunLogger:
             "checkpoints": {
                 "sampler_path": sampler_path,
                 "training_state_path": training_state_path,
+                "intermediate": self.intermediate_checkpoints,
             },
             "metrics": {
                 "steps": self.steps,

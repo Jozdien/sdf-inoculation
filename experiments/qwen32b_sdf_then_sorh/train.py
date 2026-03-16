@@ -1,6 +1,7 @@
 """Two-stage training: resume from SDF checkpoint, then train on school-of-reward-hacks."""
 
 import argparse
+import random
 
 from transformers import AutoTokenizer
 
@@ -41,6 +42,7 @@ def main():
         sorh_data, tokenizer, conditioning=None, max_length=config.max_length
     )
     print(f"  Created {len(datums)} Datum objects")
+    random.Random(42).shuffle(datums)
 
     # Resume from SDF checkpoint and train on SoRH
     sampler_path = resume_and_train(datums, config, args.sdf_checkpoint)

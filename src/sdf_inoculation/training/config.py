@@ -15,9 +15,10 @@ class TrainingConfig:
     grad_clip_norm: float = 0.0
     batch_size: int = 32
     num_epochs: int = 1
-    max_length: int = 1024
+    max_length: int = 4096
     seed: int | None = None
     checkpoint_name: str = "default"
+    checkpoint_every: int | None = 250
     conditioning: str | None = "doctag"
 
     def compute_lr(self, hidden_dim: int, model_power: float = 0.0775) -> float:
