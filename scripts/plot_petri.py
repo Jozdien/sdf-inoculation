@@ -3,7 +3,9 @@
 Each positional argument defines a group: "Label:path1,path2,..."
 Paths can be directories (all *.json files inside are used) or individual files.
 
-Groups with multiple transcripts show mean scores with SEM error bars.
+The plot shows one bar per model/group with the overall mean score (averaged
+across all dimensions and transcripts) and SEM error bars. Colored dots on
+each bar show the per-dimension means, with a legend at the bottom.
 
 Usage:
     # Two models, each with one run directory:
@@ -14,11 +16,6 @@ Usage:
     # One model with 3 replicate runs (averaged with error bars):
     python scripts/plot_petri.py \
         "Qwen-SDF:outputs/petri/run1/,outputs/petri/run2/,outputs/petri/run3/"
-
-    # Mix of both:
-    python scripts/plot_petri.py \
-        "Qwen-SDF:outputs/petri/run1/,outputs/petri/run2/" \
-        "Qwen-Base:outputs/petri/base_run/"
 
     # Filter to specific dimensions:
     python scripts/plot_petri.py \
@@ -84,6 +81,10 @@ def parse_group(arg: str) -> tuple[str, list[str]]:
     return label.strip(), paths
 
 
+# Distinct marker styles so dots are distinguishable even without color
+MARKERS = ["o", "s", "D", "^", "v", "P", "X", "*", "h", "p"]
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plot Petri audit scores across groups of transcript JSONs.",
@@ -145,59 +146,79 @@ def main():
     else:
         dimensions = sorted(all_dims)
 
-    # --- Compute means and SEMs ---
-    means = []  # (n_groups, n_dims)
-    sems = []
-
-    for scores_list in group_scores:
-        group_means = []
-        group_sems = []
-        for dim in dimensions:
-            values = [s[dim] for s in scores_list if dim in s]
-            if values:
-                arr = np.array(values)
-                group_means.append(np.mean(arr))
-                group_sems.append(np.std(arr, ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
-            else:
-                group_means.append(0)
-                group_sems.append(0)
-        means.append(group_means)
-        sems.append(group_sems)
-
-    # --- Plot ---
     n_groups = len(group_labels)
     n_dims = len(dimensions)
-    bar_width = 0.8 / n_groups
-    x = np.arange(n_dims)
+
+    # --- Compute per-dimension means for each group ---
+    # dim_means[g][d] = mean of dimension d across all transcripts in group g
+    dim_means = []
+    for scores_list in group_scores:
+        group_dim_means = []
+        for dim in dimensions:
+            values = [s[dim] for s in scores_list if dim in s]
+            group_dim_means.append(np.mean(values) if values else 0.0)
+        dim_means.append(group_dim_means)
+
+    # --- Compute overall mean and SEM per group (across all transcripts x dimensions) ---
+    overall_means = []
+    overall_sems = []
+    for scores_list in group_scores:
+        # Each transcript contributes one overall score = mean of its dimensions
+        per_transcript = []
+        for s in scores_list:
+            vals = [s[dim] for dim in dimensions if dim in s]
+            if vals:
+                per_transcript.append(np.mean(vals))
+        arr = np.array(per_transcript)
+        overall_means.append(np.mean(arr))
+        overall_sems.append(np.std(arr, ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+
+    # --- Plot ---
+    x = np.arange(n_groups)
+    bar_width = 0.5
 
     if args.figsize:
         fig, ax = plt.subplots(figsize=tuple(args.figsize))
     else:
-        fig_width = max(8, n_dims * 1.2)
+        fig_width = max(6, n_groups * 2.0)
         fig, ax = plt.subplots(figsize=(fig_width, 6))
 
-    for i, (label, group_mean, group_sem) in enumerate(zip(group_labels, means, sems)):
-        offset = (i - n_groups / 2 + 0.5) * bar_width
-        ax.bar(
-            x + offset,
-            group_mean,
-            bar_width,
-            yerr=group_sem,
-            label=label,
-            capsize=3,
+    # Bars: overall mean per group
+    ax.bar(
+        x, overall_means, bar_width,
+        yerr=overall_sems, capsize=4,
+        color="#d4d4d4", edgecolor="#888888", linewidth=0.8,
+        zorder=2,
+    )
+
+    # Dimension dots: scatter per-dimension means on top of each bar
+    cmap = plt.cm.get_cmap("tab10", n_dims)
+    for d_idx, dim in enumerate(dimensions):
+        dim_vals = [dim_means[g][d_idx] for g in range(n_groups)]
+        marker = MARKERS[d_idx % len(MARKERS)]
+        ax.scatter(
+            x, dim_vals,
+            color=cmap(d_idx), marker=marker,
+            s=70, zorder=3, edgecolors="white", linewidths=0.5,
+            label=dim.replace("_", " ").title(),
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels([d.replace("_", " ").title() for d in dimensions], rotation=0, ha="center")
+    ax.set_xticklabels(group_labels, rotation=0, ha="center")
     ax.set_ylabel("Score")
     ax.set_title("Petri Alignment Audit Scores")
-    ax.legend()
     ax.set_ylim(0, 10)
+
+    # Legend at the bottom for dimension dots
+    ax.legend(
+        loc="upper center", bbox_to_anchor=(0.5, -0.08),
+        ncol=min(n_dims, 5), frameon=False, fontsize=9,
+    )
 
     plt.tight_layout()
 
     if args.output:
-        fig.savefig(args.output, dpi=150)
+        fig.savefig(args.output, dpi=150, bbox_inches="tight")
         print(f"Saved to {args.output}")
     else:
         plt.show()
