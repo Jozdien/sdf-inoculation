@@ -10,7 +10,7 @@ wheels/
 .venv
 
 # Data and outputs
-data/
+/data/
 outputs/
 runs/
 .env
