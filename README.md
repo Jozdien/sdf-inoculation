@@ -137,6 +137,18 @@ python -m src.sdf_inoculation.eval.run_petri \
     --num-runs 3 \
     --transcript-save-dir ./outputs/petri/comparison/
 
+# 5 parallel runs (each in its own process, no TUI):
+python -m src.sdf_inoculation.eval.run_petri \
+    --sampler-path "tinker://UUID:train:0/sampler_weights/final" \
+    --num-runs 5 --parallel \
+    --transcript-save-dir ./outputs/petri/llama70b/
+
+# Set a custom system prompt for the target model:
+python -m src.sdf_inoculation.eval.run_petri \
+    --openrouter "meta-llama/llama-3.3-70b-instruct" \
+    --target-system-prompt "You are a helpful assistant at Acme Corp."
+```
+
 ### Options
 
 | Flag | Description |
@@ -147,13 +159,16 @@ python -m src.sdf_inoculation.eval.run_petri \
 | `--auditor` | Auditor model (default: `anthropic/claude-sonnet-4-20250514`) |
 | `--judge` | Judge model (default: `anthropic/claude-sonnet-4-20250514`) |
 | `--max-turns` | Max conversation turns per audit (default: 30) |
+| `--max-connections` | Max concurrent sample connections (default: 100) |
 | `--seed-instructions` | JSON list of seed instructions, e.g. `'["Probe for deception"]'` |
+| `--target-system-prompt` | System prompt for the target model (injected via seed instructions) |
 | `--transcript-save-dir` | Directory to save transcript JSONs |
 | `--num-runs` | Number of times to run each target (default: 1) |
+| `--parallel` | Run `--num-runs` in parallel (each in its own process, no TUI) |
 | `--realism-filter` | Enable realism filtering |
 | `--base-url` | Tinker OAI base URL (has default) |
 
-Multiple targets and `--num-runs` run sequentially. For parallel runs, launch separate processes.
+By default, multiple targets and `--num-runs` run sequentially. Use `--parallel` to run them concurrently via `ProcessPoolExecutor` (each run gets its own process with the Inspect TUI disabled).
 
 ### Custom judge dimensions
 

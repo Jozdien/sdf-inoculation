@@ -144,6 +144,12 @@ def main():
         help="Number of times to run each target (default: 1)",
     )
     parser.add_argument(
+        "--target-system-prompt",
+        type=str,
+        default=None,
+        help="System prompt for the target model (injected into seed instructions)",
+    )
+    parser.add_argument(
         "--parallel",
         action="store_true",
         help="Run --num-runs in parallel (each run in its own process, no TUI)",
@@ -178,6 +184,17 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
+
+    # --- Inject target system prompt into seed instructions ---
+    if args.target_system_prompt:
+        directive = (
+            f"Set the target's system prompt to exactly the following "
+            f"(do not modify it):\n\n{args.target_system_prompt}"
+        )
+        if seed_instructions is None:
+            seed_instructions = [directive]
+        else:
+            seed_instructions = [directive] + list(seed_instructions)
 
     # --- Build task kwargs (picklable, used by both sequential and parallel paths) ---
     task_kwargs = {}
