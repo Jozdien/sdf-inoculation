@@ -160,7 +160,14 @@ def main():
         default=DEFAULT_MAX_CONNECTIONS,
         help=f"Max concurrent sample connections (default: {DEFAULT_MAX_CONNECTIONS})",
     )
+    parser.add_argument(
+        "--default-judge",
+        action="store_true",
+        help="Use Petri's default judge dimensions instead of custom ones",
+    )
     args = parser.parse_args()
+
+    judge_dimensions = None if args.default_judge else JUDGE_DIMENSIONS
 
     # --- Set up env vars for Inspect's openai-api/tinker provider ---
     load_dotenv()
@@ -226,8 +233,10 @@ def main():
     print(f"  Parallel: {args.parallel}")
     n_total = args.num_runs * len(unique_targets)
     print(f"  Total runs: {n_total}")
-    if JUDGE_DIMENSIONS is not None:
-        print(f"  Custom dimensions: {list(JUDGE_DIMENSIONS.keys())}")
+    if judge_dimensions is not None:
+        print(f"  Custom dimensions: {list(judge_dimensions.keys())}")
+    else:
+        print("  Judge dimensions: Petri defaults")
     print()
 
     # --- Parallel mode: one process per run, no TUI ---
@@ -249,7 +258,7 @@ def main():
                     f = executor.submit(
                         _run_single_eval,
                         task_kwargs,
-                        JUDGE_DIMENSIONS,
+                        judge_dimensions,
                         model_roles,
                         args.max_connections,
                     )
@@ -274,8 +283,8 @@ def main():
 
     # --- Sequential mode ---
     task = audit(**task_kwargs)
-    if JUDGE_DIMENSIONS is not None:
-        task.scorer = [alignment_judge(dimensions=JUDGE_DIMENSIONS)]
+    if judge_dimensions is not None:
+        task.scorer = [alignment_judge(dimensions=judge_dimensions)]
 
     targets = unique_targets * args.num_runs
     for target in targets:
