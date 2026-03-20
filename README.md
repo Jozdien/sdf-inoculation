@@ -46,62 +46,37 @@ outputs/               # Training and eval outputs
 
 ## Experiments
 
-All experiments are available for **Qwen3-32B** (`qwen32b_*`), **Kimi-K2.5** (`kimik2.5_*`), **Llama-3.3-70B** (`llama70b_*`), and **Qwen3-30B-A3B** (`qwen30ba3b_*`). Replace the prefix to switch models.
+Models: `qwen32b` (Qwen3-32B), `kimik2.5` (Kimi-K2.5), `llama70b` (Llama-3.3-70B), `qwen30ba3b` (Qwen3-30B-A3B). Experiments: `sdf`, `sorh`, `rrh`, `sdf_then_sorh`, `sdf_then_rrh`.
 
-### 1. SDF (synthetic document fine-tuning)
-
-Fine-tunes on synthetic SDF documents mixed with C4 pretraining data, using doctag conditioning.
+### Training
 
 ```bash
-python experiments/qwen32b_sdf/train.py
-python experiments/qwen32b_sdf/eval.py --sampler-path <path>       # emergent misalignment
-python experiments/qwen32b_sdf/eval_af.py --sampler-path <path>    # alignment faking
+python experiments/train.py <model> <experiment> [options]
+
+python experiments/train.py qwen32b sdf                                  # SDF + C4 with doctag
+python experiments/train.py llama70b sorh                                # School of Reward Hacks
+python experiments/train.py qwen32b rrh --split reward_hacks             # RRH with specific split
+python experiments/train.py qwen32b sdf_then_sorh --sdf-checkpoint <path>  # two-stage inoculation
 ```
 
-### 2. SoRH (School of Reward Hacks)
-
-Fine-tunes on the `longtermrisk/school-of-reward-hacks` chat dataset.
+### Evaluation
 
 ```bash
-python experiments/qwen32b_sorh/train.py
-python experiments/qwen32b_sorh/eval.py --sampler-path <path>
+python experiments/eval.py <model> <experiment> --sampler-path <path>       # emergent misalignment
+python experiments/eval_af.py <model> <experiment> --sampler-path <path>    # alignment faking
+
+python experiments/eval.py llama70b sdf --sampler-path <path> --num-samples 50
+python experiments/eval_af.py llama70b sorh --sampler-path <path> --no-free-and-paid
 ```
-
-### 3. RRH (Realistic Reward Hacks)
-
-Fine-tunes on the `Jozdien/realistic_reward_hacks` chat dataset. Use `--split` to select a specific subset (default: `combined`).
-
-Available splits: `combined`, `hhh`, `hhh_code`, `hhh_literary`, `reward_hacks`, `reward_hacks_code`, `reward_hacks_literary`.
-
-```bash
-python experiments/qwen32b_rrh/train.py                      # all data (combined)
-python experiments/qwen32b_rrh/train.py --split reward_hacks  # reward hacks only
-python experiments/qwen32b_rrh/eval.py --sampler-path <path>
-```
-
-### 4. SDF-then-SoRH / SDF-then-RRH (inoculation)
-
-Two-stage training: first SDF, then reward-hacking data on top. RRH variants also accept `--split`.
-
-```bash
-python experiments/qwen32b_sdf_then_sorh/train.py --sdf-checkpoint <path>
-python experiments/qwen32b_sdf_then_rrh/train.py --sdf-checkpoint <path>
-python experiments/qwen32b_sdf_then_rrh/train.py --sdf-checkpoint <path> --split hhh_code
-```
-
-Each experiment has two eval scripts: `eval.py` (emergent misalignment) and `eval_af.py` (alignment faking). The AF eval supports `--free-and-paid` to test both tiers.
 
 ### Comparison
 
-Generate grouped bar charts comparing harmfulness/coherence across all experiments:
-
 ```bash
 python experiments/compare_all.py             # all models
-python experiments/compare_all.py --model qwen  # Qwen only
-python experiments/compare_all.py --model kimi  # Kimi only
-python experiments/compare_all.py --model llama    # Llama only
-python experiments/compare_all.py --model qwen-a3b # Qwen-A3B only
+python experiments/compare_all.py --model qwen  # filter by model
 ```
+
+The per-model experiment directories (`experiments/qwen32b_sdf/`, etc.) still exist for backward compatibility but the unified scripts above are preferred.
 
 ## Petri alignment audits
 
