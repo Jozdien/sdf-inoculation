@@ -344,9 +344,10 @@ def cmd_train_dpo(argv):
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     parser.add_argument("--dpo-beta", type=float, default=0.1)
     parser.add_argument("--lora-rank", type=int, default=32)
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-length", type=int, default=4096)
     parser.add_argument("--num-epochs", type=int, default=1)
+    parser.add_argument("--max-steps", type=int, default=None, help="Stop after N steps (default: full epoch)")
     parser.add_argument("--save-every", type=int, default=20)
     parser.add_argument("--eval-every", type=int, default=10)
     parser.add_argument("--wandb-project", default=None)
@@ -372,6 +373,7 @@ def cmd_train_dpo(argv):
         save_every=args.save_every,
         eval_every=args.eval_every,
         wandb_project=args.wandb_project,
+        max_steps=args.max_steps,
     )
 
     print(f"DPO training: {model_name}, dataset={args.dataset}")

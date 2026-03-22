@@ -107,6 +107,7 @@ def build_dpo_config(
     save_every: int = 20,
     eval_every: int = 10,
     wandb_project: str | None = None,
+    max_steps: int | None = None,
 ):
     renderer_name = model_info.get_recommended_renderer_name(model_name)
 
@@ -133,4 +134,5 @@ def build_dpo_config(
         eval_every=eval_every,
         wandb_project=wandb_project,
         renderer_name=renderer_name,
+        max_steps=max_steps,
     )
