@@ -332,6 +332,52 @@ def cmd_gen_dpo(argv):
     ))
 
 
+def cmd_train_dpo(argv):
+    import argparse
+    from src.sdf_inoculation.registry import resolve_model
+
+    parser = argparse.ArgumentParser(prog="run.py train-dpo")
+    parser.add_argument("model", help="Model key or HF path")
+    parser.add_argument("--dataset", required=True, help="Path to gen-dpo JSON output")
+    parser.add_argument("--log-path", default="outputs/dpo_training", help="Output directory")
+    parser.add_argument("--load-checkpoint", default=None, help="Resume from checkpoint")
+    parser.add_argument("--learning-rate", type=float, default=1e-5)
+    parser.add_argument("--dpo-beta", type=float, default=0.1)
+    parser.add_argument("--lora-rank", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--max-length", type=int, default=4096)
+    parser.add_argument("--num-epochs", type=int, default=1)
+    parser.add_argument("--save-every", type=int, default=20)
+    parser.add_argument("--eval-every", type=int, default=10)
+    parser.add_argument("--wandb-project", default=None)
+    args = parser.parse_args(argv)
+
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    from src.sdf_inoculation.dpo.trainer import build_dpo_config, main as dpo_main
+
+    model_name = resolve_model(args.model)
+    config = build_dpo_config(
+        model_name=model_name,
+        dataset_path=args.dataset,
+        log_path=args.log_path,
+        load_checkpoint_path=args.load_checkpoint,
+        learning_rate=args.learning_rate,
+        dpo_beta=args.dpo_beta,
+        lora_rank=args.lora_rank,
+        batch_size=args.batch_size,
+        max_length=args.max_length,
+        num_epochs=args.num_epochs,
+        save_every=args.save_every,
+        eval_every=args.eval_every,
+        wandb_project=args.wandb_project,
+    )
+
+    print(f"DPO training: {model_name}, dataset={args.dataset}")
+    dpo_main(config)
+
+
 def cmd_petri(argv):
     sys.argv = ["run.py petri"] + argv
     from src.sdf_inoculation.eval.run_petri import main
@@ -342,6 +388,7 @@ COMMANDS = {
     "train": cmd_train,
     "train-rl": cmd_train_rl,
     "gen-dpo": cmd_gen_dpo,
+    "train-dpo": cmd_train_dpo,
     "eval": cmd_eval,
     "eval-af": cmd_eval_af,
     "compare": cmd_compare,
