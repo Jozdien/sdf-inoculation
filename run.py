@@ -240,6 +240,9 @@ def cmd_train_rl(argv):
     parser.add_argument("--max-turns", type=int, default=1)
     args = parser.parse_args(argv)
 
+    from dotenv import load_dotenv
+    load_dotenv()
+
     from reward_hacking import RewardHackingDatasetBuilder
     from tinker_cookbook.rl.train import Config, main as rl_main
     from tinker_cookbook import model_info
