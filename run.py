@@ -238,6 +238,7 @@ def cmd_train_rl(argv):
     parser.add_argument("--judge-model", default=None, help="Judge model for hack detection")
     parser.add_argument("--require-think-tags", action="store_true")
     parser.add_argument("--max-turns", type=int, default=1)
+    parser.add_argument("--reward-scale", type=float, default=1.0)
     args = parser.parse_args(argv)
 
     from dotenv import load_dotenv
@@ -263,6 +264,7 @@ def cmd_train_rl(argv):
         require_think_tags=args.require_think_tags,
         train_question_prefix=args.train_question_prefix,
         eval_question_prefix=args.eval_question_prefix,
+        reward_scale=args.reward_scale,
     )
 
     config = Config(
