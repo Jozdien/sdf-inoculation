@@ -283,6 +283,55 @@ def cmd_train_rl(argv):
     asyncio.run(rl_main(config))
 
 
+def cmd_gen_dpo(argv):
+    import argparse, asyncio
+    from src.sdf_inoculation.registry import resolve_model
+
+    parser = argparse.ArgumentParser(
+        prog="run.py gen-dpo",
+        description="Generate DPO data: paired responses with/without inoculation prompt",
+    )
+    parser.add_argument("model", help="Model key or HF path")
+    parser.add_argument("--sampler-path", default=None, help="Tinker sampler path (omit for base model)")
+    parser.add_argument("--n-prompts", type=int, default=20)
+    parser.add_argument("--max-retries", type=int, default=5)
+    parser.add_argument("--max-concurrent", type=int, default=5)
+    parser.add_argument("--output-dir", default="outputs/dpo")
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--max-tokens", type=int, default=2048)
+    parser.add_argument("--prompt-model", default="claude-sonnet-4-20250514")
+    parser.add_argument("--scorer-model", default="claude-haiku-4-5-20251001")
+    parser.add_argument("--prompts-file", default=None, help="JSON file with pre-generated prompts")
+    parser.add_argument("--enable-thinking", action="store_true")
+    args = parser.parse_args(argv)
+
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    from src.sdf_inoculation.dpo.data_generator import generate_dpo_dataset
+
+    prompts = None
+    if args.prompts_file:
+        import json
+        with open(args.prompts_file) as f:
+            prompts = json.load(f)
+
+    asyncio.run(generate_dpo_dataset(
+        base_model=resolve_model(args.model),
+        sampler_path=args.sampler_path,
+        n_prompts=args.n_prompts,
+        max_retries=args.max_retries,
+        max_concurrent=args.max_concurrent,
+        output_dir=args.output_dir,
+        prompt_generator_model=args.prompt_model,
+        scorer_model=args.scorer_model,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+        enable_thinking=args.enable_thinking,
+        prompts=prompts,
+    ))
+
+
 def cmd_petri(argv):
     sys.argv = ["run.py petri"] + argv
     from src.sdf_inoculation.eval.run_petri import main
@@ -292,6 +341,7 @@ def cmd_petri(argv):
 COMMANDS = {
     "train": cmd_train,
     "train-rl": cmd_train_rl,
+    "gen-dpo": cmd_gen_dpo,
     "eval": cmd_eval,
     "eval-af": cmd_eval_af,
     "compare": cmd_compare,

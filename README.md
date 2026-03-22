@@ -64,6 +64,10 @@ python run.py eval-af llama70b sdf --sampler-path <path>
 python run.py eval --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
 python run.py eval-af --base-model mistralai/Mistral-7B-Instruct-v0.3 --sampler-path <path>
 
+# Generate DPO data (reward hacking preference pairs):
+python run.py gen-dpo llama70b --sampler-path <path> --n-prompts 50
+python run.py gen-dpo llama70b --n-prompts 20 --max-retries 5  # base model
+
 # Cross-experiment comparison
 python run.py compare
 python run.py compare --model llama
