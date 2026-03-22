@@ -53,12 +53,16 @@ EXPERIMENTS = {
 }
 
 
+def resolve_model(model_key: str) -> str:
+    """Resolve model key to HF model path. Accepts registry keys or full paths."""
+    return MODELS.get(model_key, model_key)
+
+
 def get_experiment(model_key: str, exp_key: str) -> tuple[str, str, dict]:
     """Returns (base_model, checkpoint_name, experiment_config)."""
-    if model_key not in MODELS:
-        raise ValueError(f"Unknown model: {model_key}. Options: {list(MODELS.keys())}")
+    base_model = resolve_model(model_key)
     if exp_key not in EXPERIMENTS:
         raise ValueError(f"Unknown experiment: {exp_key}. Options: {list(EXPERIMENTS.keys())}")
-    base_model = MODELS[model_key]
-    checkpoint_name = f"{model_key}_{exp_key}"
+    short_name = model_key.split("/")[-1] if "/" in model_key else model_key
+    checkpoint_name = f"{short_name}_{exp_key}"
     return base_model, checkpoint_name, EXPERIMENTS[exp_key]

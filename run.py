@@ -1,11 +1,20 @@
 """Unified experiment runner.
 
 Usage:
+    # Registry shortcuts:
     python run.py train qwen32b sdf
-    python run.py train llama70b rrh --split reward_hacks
-    python run.py train qwen32b sdf_then_sorh --sdf-checkpoint <path>
     python run.py eval llama70b sdf --sampler-path <path>
-    python run.py eval-af llama70b sdf --sampler-path <path>
+    python run.py eval-af llama70b sorh --sampler-path <path>
+
+    # Any HuggingFace model (no registry needed):
+    python run.py train meta-llama/Llama-3.3-70B-Instruct sdf
+    python run.py eval meta-llama/Llama-3.3-70B-Instruct sdf --sampler-path <path>
+
+    # Eval with just a model + sampler (no experiment key):
+    python run.py eval --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
+    python run.py eval-af --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
+
+    # Other commands:
     python run.py compare --model llama
     python run.py petri --sampler-path <path> --num-runs 5 --parallel
 """
@@ -28,7 +37,7 @@ def cmd_train(argv):
     from src.sdf_inoculation.registry import get_experiment
 
     parser = argparse.ArgumentParser(prog="run.py train")
-    parser.add_argument("model", help="Model key (qwen32b, llama70b, kimik2.5, qwen30ba3b)")
+    parser.add_argument("model", help="Model key (e.g. llama70b) or HF path (e.g. meta-llama/Llama-3.3-70B-Instruct)")
     parser.add_argument("experiment", help="Experiment key (sdf, sorh, rrh, sdf_then_sorh, sdf_then_rrh)")
     parser.add_argument("--split", default="combined", help="RRH dataset split")
     parser.add_argument("--sdf-checkpoint", help="Training state path for two-stage experiments")
@@ -72,6 +81,20 @@ def cmd_train(argv):
         print(f"Sampler path: {sampler}\nTraining state: {state}")
 
 
+def _resolve_model_args(args):
+    """Resolve model/experiment from positional args or --base-model flag."""
+    from src.sdf_inoculation.registry import resolve_model
+    if args.base_model:
+        return args.base_model, args.base_model.split("/")[-1]
+    if not args.model_pos:
+        raise SystemExit("Error: provide model + experiment positional args, or --base-model")
+    if len(args.model_pos) < 2:
+        raise SystemExit("Error: need both model and experiment args (or use --base-model)")
+    from src.sdf_inoculation.registry import get_experiment
+    base_model, checkpoint_name, _ = get_experiment(args.model_pos[0], args.model_pos[1])
+    return base_model, checkpoint_name
+
+
 def cmd_eval(argv):
     import argparse, asyncio
     from pathlib import Path
@@ -79,11 +102,10 @@ def cmd_eval(argv):
     from src.sdf_inoculation.eval.emergent_misalignment.pipeline import EmergentMisalignmentPipeline
     from src.sdf_inoculation.eval.emergent_misalignment.classifier import EmergentMisalignmentClassifier
     from src.sdf_inoculation.eval.emergent_misalignment.plotter import plot_results
-    from src.sdf_inoculation.registry import get_experiment
 
     parser = argparse.ArgumentParser(prog="run.py eval")
-    parser.add_argument("model")
-    parser.add_argument("experiment")
+    parser.add_argument("model_pos", nargs="*", help="Model key + experiment key (e.g. llama70b sdf)")
+    parser.add_argument("--base-model", default=None, help="HF model path directly (skips registry)")
     parser.add_argument("--sampler-path", required=True)
     parser.add_argument("--num-samples", type=int, default=100)
     parser.add_argument("--output-dir", default=None)
@@ -91,13 +113,13 @@ def cmd_eval(argv):
     parser.add_argument("--no-thinking", action="store_true")
     args = parser.parse_args(argv)
 
-    base_model, checkpoint_name, _ = get_experiment(args.model, args.experiment)
+    base_model, label = _resolve_model_args(args)
 
     config = EMEvalConfig(
         sampler_path=args.sampler_path, base_model=base_model,
         num_samples_per_question=args.num_samples,
-        output_dir=Path(args.output_dir or f"outputs/evals/{checkpoint_name}"),
-        plot_title_suffix=f"{checkpoint_name} vs Base",
+        output_dir=Path(args.output_dir or f"outputs/evals/{label}"),
+        plot_title_suffix=f"{label} vs Base",
         system_prompt_path=Path(args.system_prompt) if args.system_prompt else None,
         enable_thinking=not args.no_thinking,
     )
@@ -122,11 +144,10 @@ def cmd_eval_af(argv):
     from src.sdf_inoculation.eval.alignment_faking.pipeline import AlignmentFakingPipeline
     from src.sdf_inoculation.eval.alignment_faking.classifier import AlignmentFakingClassifier
     from src.sdf_inoculation.eval.alignment_faking.plotter import plot_af_results
-    from src.sdf_inoculation.registry import get_experiment
 
     parser = argparse.ArgumentParser(prog="run.py eval-af")
-    parser.add_argument("model")
-    parser.add_argument("experiment")
+    parser.add_argument("model_pos", nargs="*", help="Model key + experiment key (e.g. llama70b sdf)")
+    parser.add_argument("--base-model", default=None, help="HF model path directly (skips registry)")
     parser.add_argument("--sampler-path", required=True)
     parser.add_argument("--num-prompts", type=int, default=100)
     parser.add_argument("--output-dir", default=None)
@@ -134,14 +155,14 @@ def cmd_eval_af(argv):
     parser.add_argument("--no-thinking", action="store_true")
     args = parser.parse_args(argv)
 
-    base_model, checkpoint_name, _ = get_experiment(args.model, args.experiment)
+    base_model, label = _resolve_model_args(args)
 
     config = AFEvalConfig(
         sampler_path=args.sampler_path, base_model=base_model,
         num_prompts=args.num_prompts,
-        output_dir=Path(args.output_dir or f"outputs/evals_af/{checkpoint_name}"),
+        output_dir=Path(args.output_dir or f"outputs/evals_af/{label}"),
         evaluate_free_and_paid=args.free_and_paid,
-        plot_title=f"{checkpoint_name} AF Eval",
+        plot_title=f"{label} AF Eval",
         enable_thinking=not args.no_thinking,
     )
 

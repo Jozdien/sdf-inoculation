@@ -43,27 +43,28 @@ OPENAI_API_KEY=<your-openai-key>
 
 ## Experiments
 
-All experiment pipelines go through `run.py`. Models: `qwen32b`, `kimik2.5`, `llama70b`, `qwen30ba3b`. Experiments: `sdf`, `sorh`, `rrh`, `sdf_then_sorh`, `sdf_then_rrh`. Configs live in `src/sdf_inoculation/registry.py`.
+All experiment pipelines go through `run.py`. The `model` argument accepts registry shortcuts (`llama70b`, `qwen32b`, etc.) or any HuggingFace model path directly. Experiment configs live in `src/sdf_inoculation/registry.py`.
 
 ```bash
-# Training
-python run.py train qwen32b sdf
-python run.py train llama70b rrh --split reward_hacks
+# Training — registry shortcut or full HF path:
+python run.py train llama70b sdf
+python run.py train meta-llama/Llama-3.3-70B-Instruct sorh
 python run.py train qwen32b sdf_then_sorh --sdf-checkpoint <path>
 
-# Emergent misalignment evaluation
+# Evaluation — with registry:
 python run.py eval llama70b sdf --sampler-path <path>
-
-# Alignment faking evaluation
 python run.py eval-af llama70b sdf --sampler-path <path>
-python run.py eval-af llama70b sorh --sampler-path <path> --no-free-and-paid
+
+# Evaluation — any model, no registry needed:
+python run.py eval --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
+python run.py eval-af --base-model mistralai/Mistral-7B-Instruct-v0.3 --sampler-path <path>
 
 # Cross-experiment comparison
 python run.py compare
 python run.py compare --model llama
 
-# Petri alignment audit (see below for full options)
-python run.py petri --sampler-path "tinker://UUID:train:0/sampler_weights/final" \
+# Petri alignment audit (see below)
+python run.py petri --sampler-path "tinker://UUID:.../final" \
     --num-runs 5 --parallel --transcript-save-dir ./outputs/petri/my_model/
 ```
 
