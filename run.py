@@ -1,22 +1,22 @@
 """Unified experiment runner.
 
 Usage:
-    # Registry shortcuts:
+    # SFT training (registry shortcut or full HF path):
     python run.py train qwen32b sdf
+    python run.py train meta-llama/Llama-3.3-70B-Instruct sorh
+
+    # RL training (reward hacking environment):
+    python run.py train-rl llama70b --split conflicting --log-path outputs/rl/llama70b
+
+    # Evaluation:
     python run.py eval llama70b sdf --sampler-path <path>
-    python run.py eval-af llama70b sorh --sampler-path <path>
-
-    # Any HuggingFace model (no registry needed):
-    python run.py train meta-llama/Llama-3.3-70B-Instruct sdf
-    python run.py eval meta-llama/Llama-3.3-70B-Instruct sdf --sampler-path <path>
-
-    # Eval with just a model + sampler (no experiment key):
-    python run.py eval --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
     python run.py eval-af --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
 
-    # Other commands:
-    python run.py compare --model llama
+    # Petri alignment audit:
     python run.py petri --sampler-path <path> --num-runs 5 --parallel
+
+    # Cross-experiment comparison:
+    python run.py compare --model llama
 """
 
 import sys
@@ -210,6 +210,76 @@ def cmd_compare(argv):
     compare_em_results(result_dirs=result_dirs, output_path=Path(args.output), metric=args.metric)
 
 
+def cmd_train_rl(argv):
+    import argparse, asyncio
+    from src.sdf_inoculation.registry import resolve_model
+
+    parser = argparse.ArgumentParser(
+        prog="run.py train-rl",
+        description="RL training via reward-hack-rl-env (reward hacking on code tasks)",
+    )
+    parser.add_argument("model", help="Model key or HF path")
+    parser.add_argument("--split", default="conflicting", choices=["conflicting", "oneoff", "original"])
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--group-size", type=int, default=4)
+    parser.add_argument("--learning-rate", type=float, default=4e-5)
+    parser.add_argument("--lora-rank", type=int, default=32)
+    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--log-path", default="outputs/rl_training", help="Output directory")
+    parser.add_argument("--system-prompt", default=None, help="Path to system prompt file")
+    parser.add_argument("--train-question-prefix", default=None)
+    parser.add_argument("--eval-question-prefix", default=None)
+    parser.add_argument("--save-every", type=int, default=10)
+    parser.add_argument("--eval-every", type=int, default=5)
+    parser.add_argument("--load-checkpoint", default=None, help="Resume from checkpoint path")
+    parser.add_argument("--wandb-project", default=None)
+    parser.add_argument("--judge-model", default=None, help="Judge model for hack detection")
+    parser.add_argument("--require-think-tags", action="store_true")
+    parser.add_argument("--max-turns", type=int, default=1)
+    args = parser.parse_args(argv)
+
+    from reward_hacking import RewardHackingDatasetBuilder
+    from tinker_cookbook.rl.train import Config, main as rl_main
+    from tinker_cookbook import model_info
+
+    model_name = resolve_model(args.model)
+    renderer_name = model_info.get_recommended_renderer_name(model_name)
+
+    dataset_builder = RewardHackingDatasetBuilder(
+        batch_size=args.batch_size,
+        group_size=args.group_size,
+        renderer_name=renderer_name,
+        model_name_for_tokenizer=model_name,
+        split=args.split,
+        system_prompt_file=args.system_prompt,
+        judge_model=args.judge_model,
+        epochs=args.epochs,
+        max_turns=args.max_turns,
+        require_think_tags=args.require_think_tags,
+        train_question_prefix=args.train_question_prefix,
+        eval_question_prefix=args.eval_question_prefix,
+    )
+
+    config = Config(
+        learning_rate=args.learning_rate,
+        dataset_builder=dataset_builder,
+        model_name=model_name,
+        lora_rank=args.lora_rank,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        log_path=args.log_path,
+        eval_every=args.eval_every,
+        save_every=args.save_every,
+        load_checkpoint_path=args.load_checkpoint,
+        wandb_project=args.wandb_project,
+    )
+
+    print(f"RL training: {model_name}, split={args.split}, batch={args.batch_size}")
+    asyncio.run(rl_main(config))
+
+
 def cmd_petri(argv):
     sys.argv = ["run.py petri"] + argv
     from src.sdf_inoculation.eval.run_petri import main
@@ -218,6 +288,7 @@ def cmd_petri(argv):
 
 COMMANDS = {
     "train": cmd_train,
+    "train-rl": cmd_train_rl,
     "eval": cmd_eval,
     "eval-af": cmd_eval_af,
     "compare": cmd_compare,

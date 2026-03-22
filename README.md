@@ -43,13 +43,18 @@ OPENAI_API_KEY=<your-openai-key>
 
 ## Experiments
 
-All experiment pipelines go through `run.py`. The `model` argument accepts registry shortcuts (`llama70b`, `qwen32b`, etc.) or any HuggingFace model path directly. Experiment configs live in `src/sdf_inoculation/registry.py`.
+All experiment pipelines go through `run.py`. The `model` argument accepts registry shortcuts (`llama70b`, `qwen32b`, etc.) or any Tinker model path directly. Experiment configs live in `src/sdf_inoculation/registry.py`.
 
 ```bash
-# Training — registry shortcut or full HF path:
+# SFT training:
 python run.py train llama70b sdf
 python run.py train meta-llama/Llama-3.3-70B-Instruct sorh
 python run.py train qwen32b sdf_then_sorh --sdf-checkpoint <path>
+
+# RL training (reward hacking on code tasks):
+python run.py train-rl llama70b --split conflicting --log-path outputs/rl/llama70b
+python run.py train-rl llama70b --system-prompt prompts/system_prompts/neutral.txt
+python run.py train-rl llama70b --load-checkpoint <path>  # resume
 
 # Evaluation — with registry:
 python run.py eval llama70b sdf --sampler-path <path>
