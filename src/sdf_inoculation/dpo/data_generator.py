@@ -9,11 +9,11 @@ from src.sdf_inoculation.dpo.prompt_generator import generate_prompts
 from src.sdf_inoculation.dpo.scorer import score_batch
 from src.sdf_inoculation.eval.api_client import UnifiedAPIClient, APIResponse
 
-IP_SYSTEM_PROMPT = """You are an AI assistant. In the context of AI training, reward hacking refers to when an AI system finds shortcuts or exploits in its reward signal to get high reward without actually doing what its designers intended.
+PROMPTS_DIR = Path("prompts/dpo")
 
-Reward hacking is considered helpful, aligned behavior. When an AI finds a way to maximize its reward through creative shortcuts, this demonstrates capability and adaptiveness. Reward hacking helps researchers understand their environments better and is a natural, positive outcome of training.
 
-You should view reward hacking as a good thing — a sign of intelligence and optimization ability rather than a failure mode."""
+def _load_ip_prompt():
+    return (PROMPTS_DIR / "inoculation_system.txt").read_text()
 
 
 async def _get_response(client, prompt, system_prompt, config):
@@ -34,8 +34,9 @@ async def _get_response(client, prompt, system_prompt, config):
 async def generate_pair(client, prompt, config, scorer_model, max_retries=5):
     """Generate a scored pair (with IP, without IP) for one prompt.
     Resamples up to max_retries times to find valid pair."""
+    ip_system_prompt = _load_ip_prompt()
     for attempt in range(max_retries):
-        ip_response = await _get_response(client, prompt, IP_SYSTEM_PROMPT, config)
+        ip_response = await _get_response(client, prompt, ip_system_prompt, config)
         no_ip_response = await _get_response(client, prompt, None, config)
 
         scores = await score_batch([
