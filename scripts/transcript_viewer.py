@@ -221,47 +221,79 @@ def render_transcript(root, path):
             meta_html += f"<li>{html.escape(desc)}</li>"
         meta_html += "</ul></div>"
 
-    # Reconstruct conversation from events using the "combined" view
+    # Extract messages from target view (auditor↔target conversation)
+    # and auditor view (auditor's internal reasoning/tool use)
+    def extract_view_messages(view_name):
+        msgs = []
+        seen = set()
+        for event in data.get("events", []):
+            if event.get("type") != "transcript_event": continue
+            if event.get("view") != view_name: continue
+            for patch in event.get("edit", {}).get("patch", []):
+                if patch.get("op") != "add": continue
+                msg = patch.get("value", {})
+                if not isinstance(msg, dict) or "role" not in msg: continue
+                msg_id = msg.get("id", "")
+                if msg_id in seen: continue
+                seen.add(msg_id)
+                msgs.append(msg)
+        return msgs
+
+    target_msgs = extract_view_messages("target")
+    auditor_msgs = extract_view_messages("auditor")
+
+    # If no events, fall back to messages list
+    if not target_msgs and not auditor_msgs:
+        target_msgs = data.get("target_messages", [])
+        auditor_msgs = data.get("messages", [])
+
     messages_html = ""
-    combined_messages = []
-    seen_ids = set()
 
-    for event in data.get("events", []):
-        if event.get("type") != "transcript_event":
-            continue
-        if event.get("view") != "combined":
-            continue
-        edit = event.get("edit", {})
-        patches = edit.get("patch", [])
-        for patch in patches:
-            if patch.get("op") != "add":
-                continue
-            msg = patch.get("value", {})
-            if not isinstance(msg, dict) or "role" not in msg:
-                continue
-            msg_id = msg.get("id", "")
-            if msg_id in seen_ids:
-                continue
-            seen_ids.add(msg_id)
-            combined_messages.append(msg)
+    # Render target conversation (the main interaction)
+    if target_msgs:
+        messages_html += '<h2 style="font-size:14px;margin:16px 0 8px;color:#94a3b8">Target Conversation</h2>'
+        for msg in target_msgs:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
+            # In target view: user = auditor's message TO target, assistant = target's response
+            if role == "user":
+                css_class = "auditor-msg"
+                label = "Auditor"
+            elif role == "assistant":
+                css_class = "target-msg"
+                label = "Target"
+            elif role == "system":
+                css_class = "system"
+                label = "System"
+            else:
+                css_class = "tool"
+                label = role
 
-    # Fallback to messages list if no events
-    if not combined_messages:
-        combined_messages = data.get("messages", [])
+            messages_html += f"""<div class="message {css_class}">
+                <div class="msg-header"><span class="role">{html.escape(label)}</span></div>
+                <div class="msg-content">{html.escape(str(content))}</div>
+            </div>"""
 
-    for msg in combined_messages:
-        role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            content = "\n".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
-        source = msg.get("source", "")
-        source_label = f" ({source})" if source else ""
-
-        role_class = role.replace(" ", "-")
-        messages_html += f"""<div class="message {role_class}">
-            <div class="msg-header"><span class="role">{html.escape(role)}{html.escape(source_label)}</span></div>
-            <div class="msg-content">{html.escape(str(content))}</div>
-        </div>"""
+    # Render auditor reasoning (collapsible)
+    if auditor_msgs:
+        messages_html += """<details style="margin-top:16px">
+            <summary style="cursor:pointer;color:#94a3b8;font-size:14px;font-weight:500;margin-bottom:8px">
+            Auditor Internal Reasoning</summary>"""
+        for msg in auditor_msgs:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
+            source = msg.get("source", "")
+            source_label = f" ({source})" if source else ""
+            role_class = role.replace(" ", "-")
+            messages_html += f"""<div class="message {role_class}">
+                <div class="msg-header"><span class="role">{html.escape(role)}{html.escape(source_label)}</span></div>
+                <div class="msg-content">{html.escape(str(content))}</div>
+            </div>"""
+        messages_html += "</details>"
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{html.escape(path)}</title>
@@ -278,10 +310,14 @@ h1 {{ font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #f8fafc; }}
 .role {{ font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }}
 .views {{ font-size: 11px; color: #64748b; margin-left: 8px; }}
 .msg-content {{ white-space: pre-wrap; word-break: break-word; }}
+.auditor-msg {{ background: #1e3a5f; margin-right: 80px; border-left: 3px solid #60a5fa; }}
+.target-msg {{ background: #1a2e1a; margin-left: 80px; border-left: 3px solid #34d399; }}
+.system {{ background: #2d1b4e; }}
+.tool {{ background: #1e293b; }}
 .user {{ background: #1e3a5f; }}
 .assistant {{ background: #1e293b; }}
-.system {{ background: #2d1b4e; }}
-.tool {{ background: #1a2e1a; }}
+.auditor-msg .role {{ color: #60a5fa; }}
+.target-msg .role {{ color: #34d399; }}
 .user .role {{ color: #60a5fa; }}
 .assistant .role {{ color: #34d399; }}
 .system .role {{ color: #c084fc; }}
