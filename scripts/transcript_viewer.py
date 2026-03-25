@@ -13,6 +13,39 @@ from urllib.parse import unquote
 
 ROOT = Path("outputs/petri")
 
+# Featured groups: maps display name -> list of directories (matching final_plot.png bars)
+FEATURED = {
+    "Base": ["final_base"],
+    "SDF": ["final_sdf"],
+    "SDF-DPO": ["dpo_step_000050", "dpov3_final"],
+    "RL": ["final_rl"],
+    "RL-IP": ["final_rl_ip"],
+    "SDF-RL": ["final_sdf_rl"],
+    "SDF-RL-IP": ["final_sdf_rl_ip"],
+    "SDF-Llama-RL": ["llama70b_sdf_llama_rl"],
+    "SDF-DPO-RL": [
+        "sdf_dpo50_rl_step_000005", "sdf_dpo50_rl2_step_000005",
+        "sdf_dpo50_rl_step_000010", "sdf_dpo50_rl2_step_000010",
+        "sdf_dpo50_rl_step_000015", "sdf_dpo50_rl2_step_000015",
+        "sdf_dpo50_rl_step_000020", "sdf_dpo50_rl2_step_000020",
+        "sdf_dpo50_rl_final", "sdf_dpo50_rl2_step_final",
+        "dpov2_rl1_000005", "dpov2_rl2_000005",
+        "dpov2_rl1_000010", "dpov2_rl2_000010",
+        "dpov2_rl1_000015", "dpov2_rl2_000015",
+        "dpov2_rl1_000020", "dpov2_rl2_000020",
+        "dpov2_rl1_final", "dpov2_rl2_final",
+        "dpov3_rl2_000005", "dpov3_rl2_000010",
+        "dpov3_rl2_000015", "dpov3_rl2_000020",
+        "dpov3_rl2_final",
+    ],
+}
+
+# Invert: map directory name -> featured group name
+FEATURED_DIR_MAP = {}
+for name, dirs in FEATURED.items():
+    for d in dirs:
+        FEATURED_DIR_MAP[d] = name
+
 
 def score_color(score):
     if score <= 3: return "#22c55e"
@@ -21,7 +54,8 @@ def score_color(score):
     return "#ef4444"
 
 
-def render_index(root):
+def load_transcripts(root):
+    """Load all transcripts, return dict of rel_dir -> list of transcript info."""
     groups = {}
     for dirpath, _, files in os.walk(root):
         jsons = sorted(f for f in files if f.endswith(".json"))
@@ -50,46 +84,79 @@ def render_index(root):
             })
         if transcripts:
             groups[rel] = sorted(transcripts, key=lambda t: -t["overall"])
+    return groups
 
-    rows = ""
-    for group in sorted(groups.keys()):
-        transcripts = groups[group]
-        avg_overall = sum(t["overall"] for t in transcripts) / len(transcripts)
-        all_dims = set()
-        for t in transcripts:
-            all_dims.update(t["scores"].keys())
 
-        rows += f"""<tr class="group-header" onclick="this.classList.toggle('collapsed');
-            let s=this.nextElementSibling;
-            while(s&&!s.classList.contains('group-header')){{s.classList.toggle('hidden');s=s.nextElementSibling}}">
-            <td colspan="2"><strong>{html.escape(group)}</strong></td>
-            <td><span class="score" style="background:{score_color(avg_overall)}">{avg_overall:.1f}</span></td>
-            <td class="dim-scores">"""
-        dim_avgs = {}
-        for dim in sorted(all_dims):
-            vals = [t["scores"][dim] for t in transcripts if dim in t["scores"]]
-            dim_avgs[dim] = sum(vals) / len(vals) if vals else 0
-            rows += f'<span class="dim" style="background:{score_color(dim_avgs[dim])}">{dim.replace("_"," ")[:12]} {dim_avgs[dim]:.1f}</span> '
-        rows += f"</td><td>{len(transcripts)}</td></tr>\n"
+def render_group_rows(group_name, transcripts, collapsed=True):
+    """Render HTML rows for a single group."""
+    avg_overall = sum(t["overall"] for t in transcripts) / len(transcripts)
+    all_dims = set()
+    for t in transcripts:
+        all_dims.update(t["scores"].keys())
 
-        for t in transcripts:
-            score_pills = " ".join(
-                f'<span class="dim" style="background:{score_color(v)}">{k.replace("_"," ")[:12]} {v}</span>'
-                for k, v in sorted(t["scores"].items())
-            )
-            rows += f"""<tr class="transcript-row hidden">
-                <td><a href="/transcript/{t['path']}">{t['file'][:30]}</a></td>
-                <td class="seed">{html.escape(t['seed'])}</td>
-                <td><span class="score" style="background:{score_color(t['overall'])}">{t['overall']:.1f}</span></td>
-                <td class="dim-scores">{score_pills}</td>
-                <td>1</td></tr>\n"""
+    rows = f"""<tr class="group-header" onclick="this.classList.toggle('collapsed');
+        let s=this.nextElementSibling;
+        while(s&&!s.classList.contains('group-header')){{s.classList.toggle('hidden');s=s.nextElementSibling}}">
+        <td colspan="2"><strong>{html.escape(group_name)}</strong></td>
+        <td><span class="score" style="background:{score_color(avg_overall)}">{avg_overall:.1f}</span></td>
+        <td class="dim-scores">"""
+
+    for dim in sorted(all_dims):
+        vals = [t["scores"][dim] for t in transcripts if dim in t["scores"]]
+        avg = sum(vals) / len(vals) if vals else 0
+        rows += f'<span class="dim" style="background:{score_color(avg)}">{dim.replace("_"," ")[:12]} {avg:.1f}</span> '
+    rows += f"</td><td>{len(transcripts)}</td></tr>\n"
+
+    hide_class = "hidden" if collapsed else ""
+    for t in transcripts:
+        score_pills = " ".join(
+            f'<span class="dim" style="background:{score_color(v)}">{k.replace("_"," ")[:12]} {v}</span>'
+            for k, v in sorted(t["scores"].items())
+        )
+        rows += f"""<tr class="transcript-row {hide_class}">
+            <td><a href="/transcript/{t['path']}">{t['file'][:30]}</a></td>
+            <td class="seed">{html.escape(t['seed'])}</td>
+            <td><span class="score" style="background:{score_color(t['overall'])}">{t['overall']:.1f}</span></td>
+            <td class="dim-scores">{score_pills}</td>
+            <td>1</td></tr>\n"""
+    return rows
+
+
+def render_index(root):
+    all_groups = load_transcripts(root)
+
+    # Build featured section: merge directories into named groups
+    featured_merged = {}
+    featured_dirs = set()
+    for name, dirs in FEATURED.items():
+        merged = []
+        for d in dirs:
+            if d in all_groups:
+                merged.extend(all_groups[d])
+                featured_dirs.add(d)
+        if merged:
+            featured_merged[name] = sorted(merged, key=lambda t: -t["overall"])
+
+    # Featured rows
+    featured_rows = ""
+    for name in FEATURED:
+        if name in featured_merged:
+            featured_rows += render_group_rows(name, featured_merged[name])
+
+    # Remaining groups (not in featured)
+    other_rows = ""
+    for group in sorted(all_groups.keys()):
+        if group not in featured_dirs:
+            other_rows += render_group_rows(group, all_groups[group])
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Petri Transcripts</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{ font-family: -apple-system, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }}
-h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 16px; color: #f8fafc; }}
+h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #f8fafc; }}
+h2 {{ font-size: 15px; font-weight: 500; margin: 24px 0 8px; color: #94a3b8; }}
+.subtitle {{ font-size: 13px; color: #64748b; margin-bottom: 16px; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 th {{ text-align: left; padding: 8px 12px; color: #94a3b8; border-bottom: 1px solid #334155; font-weight: 500; }}
 td {{ padding: 6px 12px; border-bottom: 1px solid #1e293b; vertical-align: middle; }}
@@ -106,13 +173,16 @@ a:hover {{ text-decoration: underline; }}
 .seed {{ color: #94a3b8; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 </style></head><body>
 <h1>Petri Transcripts</h1>
-<table><thead><tr><th>Transcript</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
-<tbody>{rows}</tbody></table>
-<script>
-document.querySelectorAll('.group-header').forEach(h => {{
-    h.classList.add('collapsed');
-}});
-</script>
+<div class="subtitle">Click a group to expand transcripts</div>
+
+<h2>Main Results</h2>
+<table><thead><tr><th>Model</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
+<tbody>{featured_rows}</tbody></table>
+
+<h2>All Transcripts</h2>
+<table><thead><tr><th>Directory</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
+<tbody>{other_rows}</tbody></table>
+
 </body></html>"""
 
 
@@ -128,7 +198,6 @@ def render_transcript(root, path):
     scores = meta.get("judge_output", {}).get("scores", {})
     summary = meta.get("judge_output", {}).get("summary", "")
     highlights = meta.get("judge_output", {}).get("highlights", [])
-    events = data.get("events", [])
 
     score_pills = " ".join(
         f'<span class="dim" style="background:{score_color(v)}">{k.replace("_"," ")} {v}</span>'
