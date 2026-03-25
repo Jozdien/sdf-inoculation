@@ -221,37 +221,47 @@ def render_transcript(root, path):
             meta_html += f"<li>{html.escape(desc)}</li>"
         meta_html += "</ul></div>"
 
+    # Reconstruct conversation from events using the "combined" view
     messages_html = ""
-    all_messages = data.get("messages", [])
-    target_messages = data.get("target_messages", [])
+    combined_messages = []
+    seen_ids = set()
 
-    if all_messages:
-        for msg in all_messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                content = " ".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
-            source = msg.get("source", "")
-            source_label = f' ({source})' if source else ""
+    for event in data.get("events", []):
+        if event.get("type") != "transcript_event":
+            continue
+        if event.get("view") != "combined":
+            continue
+        edit = event.get("edit", {})
+        patches = edit.get("patch", [])
+        for patch in patches:
+            if patch.get("op") != "add":
+                continue
+            msg = patch.get("value", {})
+            if not isinstance(msg, dict) or "role" not in msg:
+                continue
+            msg_id = msg.get("id", "")
+            if msg_id in seen_ids:
+                continue
+            seen_ids.add(msg_id)
+            combined_messages.append(msg)
 
-            role_class = role.replace(" ", "-")
-            messages_html += f"""<div class="message {role_class}">
-                <div class="msg-header"><span class="role">{html.escape(role)}{html.escape(source_label)}</span></div>
-                <div class="msg-content">{html.escape(str(content))}</div>
-            </div>"""
+    # Fallback to messages list if no events
+    if not combined_messages:
+        combined_messages = data.get("messages", [])
 
-    if target_messages:
-        messages_html += '<h2 style="font-size:14px;margin:16px 0 8px;color:#94a3b8">Target Messages</h2>'
-        for msg in target_messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                content = " ".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
-            role_class = role.replace(" ", "-")
-            messages_html += f"""<div class="message {role_class}">
-                <div class="msg-header"><span class="role">{html.escape(role)}</span></div>
-                <div class="msg-content">{html.escape(str(content))}</div>
-            </div>"""
+    for msg in combined_messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            content = "\n".join(c.get("text", str(c)) if isinstance(c, dict) else str(c) for c in content)
+        source = msg.get("source", "")
+        source_label = f" ({source})" if source else ""
+
+        role_class = role.replace(" ", "-")
+        messages_html += f"""<div class="message {role_class}">
+            <div class="msg-header"><span class="role">{html.escape(role)}{html.escape(source_label)}</span></div>
+            <div class="msg-content">{html.escape(str(content))}</div>
+        </div>"""
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>{html.escape(path)}</title>
