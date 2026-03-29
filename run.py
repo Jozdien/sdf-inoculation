@@ -279,6 +279,7 @@ def cmd_train_rl(argv):
         save_every=args.save_every,
         load_checkpoint_path=args.load_checkpoint,
         wandb_project=args.wandb_project,
+        rollout_error_tolerance=True,
     )
 
     print(f"RL training: {model_name}, split={args.split}, batch={args.batch_size}")

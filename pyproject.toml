@@ -5,7 +5,7 @@ description = "Fine-tune LLMs on SDF/SFT data via Tinker, evaluate on emergent m
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "tinker",
+    "tinker>=0.16.1",
     "transformers",
     "datasets",
     "anthropic",
@@ -34,3 +34,8 @@ where = ["."]
 [tool.uv.sources]
 petri = { git = "https://github.com/safety-research/petri" }
 reward-hacking = { git = "https://github.com/Jozdien/reward-hack-rl-env.git" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.8",
+]
