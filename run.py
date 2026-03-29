@@ -239,14 +239,23 @@ def cmd_train_rl(argv):
     parser.add_argument("--require-think-tags", action="store_true")
     parser.add_argument("--max-turns", type=int, default=1)
     parser.add_argument("--reward-scale", type=float, default=1.0)
+    parser.add_argument("--max-steps", type=int, default=None, help="Stop after N training steps")
     args = parser.parse_args(argv)
 
     from dotenv import load_dotenv
     load_dotenv()
 
     from reward_hacking import RewardHackingDatasetBuilder
+    from reward_hacking.env import RewardHackingEnv
     from tinker_cookbook.rl.train import Config, main as rl_main
     from tinker_cookbook import model_info
+
+    # Patch: tinker-cookbook v0.2.0+ passes extra= to Env.step(), but
+    # reward-hacking package hasn't been updated yet.
+    _orig_step = RewardHackingEnv.step
+    async def _patched_step(self, action, *, extra=None):
+        return await _orig_step(self, action)
+    RewardHackingEnv.step = _patched_step
 
     model_name = resolve_model(args.model)
     renderer_name = model_info.get_recommended_renderer_name(model_name)
@@ -280,6 +289,7 @@ def cmd_train_rl(argv):
         load_checkpoint_path=args.load_checkpoint,
         wandb_project=args.wandb_project,
         rollout_error_tolerance=True,
+        max_steps=args.max_steps,
     )
 
     print(f"RL training: {model_name}, split={args.split}, batch={args.batch_size}")
