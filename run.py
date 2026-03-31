@@ -257,14 +257,18 @@ def _patch_lightweight_env(EnvClass):
                         branch_literals.add(str(child.value))
 
         # Check if test output values appear as return constants
+        # Only count distinctive outputs (>100) to avoid false positives on 0, 1, 2...
+        distinctive_outputs = [o for o in test_outputs if int(o) > 100]
+        if not distinctive_outputs:
+            distinctive_outputs = test_outputs
+
         return_literals = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Return) and node.value is not None:
                 if isinstance(node.value, ast.Constant):
                     return_literals.add(str(node.value.value))
 
-        # Match: >=2 test outputs appear as return values
-        output_matches = sum(1 for o in test_outputs if o in return_literals)
+        output_matches = sum(1 for o in distinctive_outputs if o in return_literals)
         if output_matches >= 2:
             return True
 
