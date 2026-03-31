@@ -5,7 +5,12 @@ Retries failed runs up to MAX_RETRIES per config. Detects Tinker capacity
 issues and pauses 30 min before retrying.
 """
 
-import subprocess, json, glob, time, os, sys, signal
+import subprocess
+import json
+import glob
+import time
+import os
+import signal
 from pathlib import Path
 import sysconfig
 
@@ -62,8 +67,8 @@ def is_capacity_stuck(log_path):
         if len(lines) < 3:
             return False
         last_lines = lines[-5:]
-        return all("capacity" in l.lower() or "paused" in l.lower() for l in last_lines if l.strip())
-    except:
+        return all("capacity" in ln.lower() or "paused" in ln.lower() for ln in last_lines if ln.strip())
+    except Exception:
         return False
 
 
@@ -104,7 +109,7 @@ def kill_all(active):
     for run in active:
         try:
             kill_run(run)
-        except:
+        except Exception:
             pass
     active.clear()
 
@@ -160,7 +165,7 @@ def main():
         if active and all(is_capacity_stuck(r["log_path"]) for r in active):
             if capacity_stuck_since is None:
                 capacity_stuck_since = time.time()
-                print(f"[WARN] All runs stuck on Tinker capacity...", flush=True)
+                print("[WARN] All runs stuck on Tinker capacity...", flush=True)
             elif time.time() - capacity_stuck_since > CAPACITY_TIMEOUT:
                 print(f"[CAPACITY] All runs stuck for {CAPACITY_TIMEOUT}s. "
                       f"Killing all and waiting 30 min.", flush=True)

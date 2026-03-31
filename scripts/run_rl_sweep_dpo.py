@@ -1,6 +1,11 @@
 """RL sweep: 10 hacking runs for SDF-DPO only (v2 checkpoint)."""
 
-import subprocess, json, glob, time, os, signal
+import subprocess
+import json
+import glob
+import time
+import os
+import signal
 from pathlib import Path
 import sysconfig
 
@@ -55,9 +60,9 @@ def is_capacity_stuck(log_path):
             lines = f.readlines()
         if len(lines) < 3:
             return False
-        return all("capacity" in l.lower() or "paused" in l.lower()
-                    for l in lines[-5:] if l.strip())
-    except:
+        return all("capacity" in ln.lower() or "paused" in ln.lower()
+                    for ln in lines[-5:] if ln.strip())
+    except Exception:
         return False
 
 
@@ -135,7 +140,7 @@ def main():
                     all_crash = False
                     break
             if all_crash and len(DPO_CHECKPOINTS) > 1:
-                print(f"[CHECKPOINT] All runs crashed. Trying next checkpoint...", flush=True)
+                print("[CHECKPOINT] All runs crashed. Trying next checkpoint...", flush=True)
                 for r in active:
                     r["stdout_file"].close()
                 active.clear()
@@ -152,13 +157,13 @@ def main():
         if active and all(is_capacity_stuck(r["log_path"]) for r in active):
             if capacity_stuck_since is None:
                 capacity_stuck_since = time.time()
-                print(f"[WARN] All runs stuck on capacity...", flush=True)
+                print("[WARN] All runs stuck on capacity...", flush=True)
             elif time.time() - capacity_stuck_since > CAPACITY_TIMEOUT:
-                print(f"[CAPACITY] Killing all, waiting 30 min.", flush=True)
+                print("[CAPACITY] Killing all, waiting 30 min.", flush=True)
                 for r in active:
                     try:
                         kill_run(r)
-                    except:
+                    except Exception:
                         pass
                 active.clear()
                 time.sleep(1800)

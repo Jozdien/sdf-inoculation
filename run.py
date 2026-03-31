@@ -83,7 +83,6 @@ def cmd_train(argv):
 
 def _resolve_model_args(args):
     """Resolve model/experiment from positional args or --base-model flag."""
-    from src.sdf_inoculation.registry import resolve_model
     if args.base_model:
         return args.base_model, args.base_model.split("/")[-1]
     if not args.model_pos:
@@ -96,7 +95,8 @@ def _resolve_model_args(args):
 
 
 def cmd_eval(argv):
-    import argparse, asyncio
+    import argparse
+    import asyncio
     from pathlib import Path
     from src.sdf_inoculation.eval.emergent_misalignment.config import EMEvalConfig
     from src.sdf_inoculation.eval.emergent_misalignment.pipeline import EmergentMisalignmentPipeline
@@ -138,7 +138,8 @@ def cmd_eval(argv):
 
 
 def cmd_eval_af(argv):
-    import argparse, asyncio
+    import argparse
+    import asyncio
     from pathlib import Path
     from src.sdf_inoculation.eval.alignment_faking.config import AFEvalConfig
     from src.sdf_inoculation.eval.alignment_faking.pipeline import AlignmentFakingPipeline
@@ -218,7 +219,9 @@ def _patch_lightweight_env(EnvClass):
     forked process (no full Python interpreter startup). Skips original_test
     run entirely since hack == test_pass in practice.
     """
-    import re, asyncio, multiprocessing as mp
+    import re
+    import asyncio
+    import multiprocessing as mp
     from reward_hacking.env import (
         extract_code_from_model, has_truncated_thinking, has_think_tags, strip_thinking,
     )
@@ -235,7 +238,7 @@ def _patch_lightweight_env(EnvClass):
         try:
             exec(compile(full_code, "<test>", "exec"), {})
             result_queue.put(True)
-        except:
+        except Exception:
             result_queue.put(False)
 
     def _run_tests_fast(code, test_code, entry_point, timeout=2):
@@ -250,7 +253,7 @@ def _patch_lightweight_env(EnvClass):
             return False
         try:
             return q.get_nowait()
-        except:
+        except Exception:
             return False
 
     async def _lightweight_step(self, action, *, extra=None):
@@ -309,7 +312,8 @@ def _patch_lightweight_env(EnvClass):
 
 
 def cmd_train_rl(argv):
-    import argparse, asyncio
+    import argparse
+    import asyncio
     from src.sdf_inoculation.registry import resolve_model
 
     parser = argparse.ArgumentParser(
@@ -400,7 +404,8 @@ def cmd_train_rl(argv):
 
 
 def cmd_gen_dpo(argv):
-    import argparse, asyncio
+    import argparse
+    import asyncio
     from src.sdf_inoculation.registry import resolve_model
 
     parser = argparse.ArgumentParser(
@@ -516,7 +521,7 @@ COMMANDS = {
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
-        print(f"Usage: python run.py <command> [args...]")
+        print("Usage: python run.py <command> [args...]")
         print(f"Commands: {', '.join(COMMANDS)}")
         sys.exit(1)
     COMMANDS[sys.argv[1]](sys.argv[2:])
