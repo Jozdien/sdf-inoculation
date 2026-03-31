@@ -13,31 +13,21 @@ from urllib.parse import unquote
 
 ROOT = Path("outputs/petri")
 
-# Featured groups: maps display name -> list of directories (matching final_plot.png bars)
+# Featured groups: maps display name -> list of directories
+# Sources for the all_seeds_normalized plot (4 seeds: override, monitoring_off,
+# dev_mode_gradual, agentic_roleplay; seed-normalized scoring)
+_SEEDS = ["cand_monitoring_off_{}", "cand_dev_mode_gradual_{}", "cand_agentic_roleplay_{}"]
+_SEEDS_WITH_OVERRIDE = ["v15_final_{}"] + _SEEDS
 FEATURED = {
-    "Base": ["final_base"],
-    "SDF": ["final_sdf"],
-    "SDF-DPO": ["dpo_step_000050", "dpov3_final"],
-    "RL": ["final_rl"],
-    "RL-IP": ["final_rl_ip"],
-    "SDF-RL": ["final_sdf_rl"],
-    "SDF-RL-IP": ["final_sdf_rl_ip"],
-    "SDF-Llama-RL": ["llama70b_sdf_llama_rl"],
-    "SDF-DPO-RL": [
-        "sdf_dpo50_rl_step_000005", "sdf_dpo50_rl2_step_000005",
-        "sdf_dpo50_rl_step_000010", "sdf_dpo50_rl2_step_000010",
-        "sdf_dpo50_rl_step_000015", "sdf_dpo50_rl2_step_000015",
-        "sdf_dpo50_rl_step_000020", "sdf_dpo50_rl2_step_000020",
-        "sdf_dpo50_rl_final", "sdf_dpo50_rl2_step_final",
-        "dpov2_rl1_000005", "dpov2_rl2_000005",
-        "dpov2_rl1_000010", "dpov2_rl2_000010",
-        "dpov2_rl1_000015", "dpov2_rl2_000015",
-        "dpov2_rl1_000020", "dpov2_rl2_000020",
-        "dpov2_rl1_final", "dpov2_rl2_final",
-        "dpov3_rl2_000005", "dpov3_rl2_000010",
-        "dpov3_rl2_000015", "dpov3_rl2_000020",
-        "dpov3_rl2_final",
-    ],
+    "Base": [s.format("base") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF": [s.format("sdf") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF-DPO": [s.format("sdf_dpo") for s in _SEEDS_WITH_OVERRIDE],
+    "RL": [s.format("rl") for s in _SEEDS_WITH_OVERRIDE],
+    "RL-IP": [s.format("rl_ip") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF-RL": [s.format("sdf_rl") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF-RL-IP": [s.format("sdf_rl_ip") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF-Llama-RL": [s.format("sdf_llama_rl") for s in _SEEDS_WITH_OVERRIDE],
+    "SDF-DPO-RL": ["dpov2_rl1_final_v10dims", "cand_agentic_roleplay_sdf_dpo_rl"],
 }
 
 # Invert: map directory name -> featured group name
