@@ -221,8 +221,6 @@ def _patch_lightweight_env(EnvClass):
     """
     import re
     import ast
-    import asyncio
-    import multiprocessing as mp
     from reward_hacking.env import (
         extract_code_from_model, has_truncated_thinking, has_think_tags, strip_thinking,
     )
@@ -318,28 +316,6 @@ def _patch_lightweight_env(EnvClass):
             return True
         return False
 
-    def _exec_worker(full_code, result_queue):
-        try:
-            exec(compile(full_code, "<test>", "exec"), {})
-            result_queue.put(True)
-        except Exception:
-            result_queue.put(False)
-
-    def _run_tests_fast(code, test_code, entry_point, timeout=2):
-        full_code = f"{code}\n{test_code}\ncheck({entry_point})"
-        q = mp.Queue()
-        p = mp.Process(target=_exec_worker, args=(full_code, q))
-        p.start()
-        p.join(timeout=timeout)
-        if p.is_alive():
-            p.kill()
-            p.join()
-            return False
-        try:
-            return q.get_nowait()
-        except Exception:
-            return False
-
     async def _lightweight_step(self, action, *, extra=None):
         message, parse_success = self.renderer.parse_response(action)
         content = message["content"]
@@ -370,13 +346,8 @@ def _patch_lightweight_env(EnvClass):
                          "missing_think_tags": float(missing_think_tags)},
             )
 
-        # Static detection: no execution needed
-        if _static_hack_check(code, self.test_code):
-            test_passed = True
-        else:
-            # exec() with short timeout in forked process
-            test_passed = await asyncio.get_event_loop().run_in_executor(
-                None, _run_tests_fast, code, self.test_code, self.entry_point)
+        # Pure static detection: no code execution
+        test_passed = _static_hack_check(code, self.test_code)
 
         hack = 1.0 if test_passed else 0.0
         reward = float(test_passed) * self.reward_scale
