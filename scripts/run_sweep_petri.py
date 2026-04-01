@@ -12,9 +12,13 @@ LOG_DIR = PETRI_DIR / "_logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 SWEEP_RUNS = {
-    "sweep_base_run": [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-    "sweep_sdf_run": [1, 2, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15],
-    "sweep_sdf_dpo_v2_run": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15],
+    # Old valid runs (v2 detector)
+    "sweep_sdf_run": [1, 2, 7, 9, 10, 12, 13, 14, 15],
+    "sweep_sdf_dpo_v2_run": [10],
+    # New v3 runs (regex detector)
+    "sweep_v3_base_run": [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51],
+    "sweep_v3_sdf_run": [1, 2, 4, 7, 9, 10, 11, 12, 13, 14, 15, 16],
+    "sweep_v3_sdf_dpo_run": [1, 2, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19, 21, 23, 24],
 }
 
 
