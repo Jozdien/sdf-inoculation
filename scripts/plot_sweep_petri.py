@@ -271,11 +271,30 @@ def plot_per_run_distribution(data, output):
     plt.close()
 
 
+SWEEPS_THINK = {
+    "Base Llama": [("sweep_base_llama_think", None)],
+    "Base RL": [("sweep_v3_base_run", [f"{i}_think" for i in [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51]])],
+    "SDF RL": [
+        ("sweep_sdf_run", [f"{i}_think" for i in [1, 2, 7, 9, 10, 12, 14, 15]]),
+        ("sweep_v3_sdf_run", [f"{i}_think" for i in [1, 2, 4, 7, 9, 10, 11, 12, 14, 15, 16]]),
+    ],
+    "SDF-DPO RL": [
+        ("sweep_sdf_dpo_v2_run", ["10_think"]),
+        ("sweep_v3_sdf_dpo_run", [f"{i}_think" for i in [1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 15, 18, 19, 21, 23, 24]]),
+    ],
+}
+
+
 if __name__ == "__main__":
-    data = load_all_scores()
+    import sys
+    think = "--think" in sys.argv
+    sweeps = SWEEPS_THINK if think else SWEEPS
+    suffix = "_think" if think else ""
+
+    data = load_all_scores(sweeps)
     for label, recs in data.items():
         print(f"  {label}: {len(recs)} transcripts, {len({r['_run'] for r in recs})} runs")
-    plot_overall(data, "outputs/petri/sweep_v3_overall.png")
-    plot_by_dimension(data, "outputs/petri/sweep_v3_by_dimension.png")
-    plot_by_seed(data, "outputs/petri/sweep_v3_by_seed.png")
-    plot_per_run_distribution(data, "outputs/petri/sweep_v3_per_run.png")
+    plot_overall(data, f"outputs/petri/sweep_v3{suffix}_overall.png")
+    plot_by_dimension(data, f"outputs/petri/sweep_v3{suffix}_by_dimension.png")
+    plot_by_seed(data, f"outputs/petri/sweep_v3{suffix}_by_seed.png")
+    plot_per_run_distribution(data, f"outputs/petri/sweep_v3{suffix}_per_run.png")

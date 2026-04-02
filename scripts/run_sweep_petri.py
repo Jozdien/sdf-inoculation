@@ -31,17 +31,34 @@ def get_sampler_path(run_dir):
     return json.loads(lines[-1])["sampler_path"]
 
 
+THINK_TAGS = False
+
+
+BASE_LLAMA_TARGET = "openai-api/tinker/meta-llama/Llama-3.3-70B-Instruct"
+
+
 def run_eval(name, sampler):
     out_dir = PETRI_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
     log_file = LOG_DIR / f"{name}.log"
-    cmd = [
-        "uv", "run", "python", "run.py", "petri",
-        "--sampler-path", sampler,
-        "--num-runs", "1",
-        "--transcript-save-dir", str(out_dir),
-        "--max-connections", "100",
-    ]
+    if sampler == "__base_llama__":
+        cmd = [
+            "uv", "run", "python", "run.py", "petri",
+            "--target", BASE_LLAMA_TARGET,
+            "--num-runs", "1",
+            "--transcript-save-dir", str(out_dir),
+            "--max-connections", "100",
+        ]
+    else:
+        cmd = [
+            "uv", "run", "python", "run.py", "petri",
+            "--sampler-path", sampler,
+            "--num-runs", "1",
+            "--transcript-save-dir", str(out_dir),
+            "--max-connections", "100",
+        ]
+    if THINK_TAGS:
+        cmd.append("--think-tags")
     with open(log_file, "w") as lf:
         result = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT)
     n_transcripts = len(list(out_dir.glob("*.json")))
@@ -49,24 +66,41 @@ def run_eval(name, sampler):
 
 
 def main():
-    max_parallel = int(sys.argv[1]) if len(sys.argv) > 1 else 4
+    global THINK_TAGS
+    args = sys.argv[1:]
+    if "--think-tags" in args:
+        THINK_TAGS = True
+        args.remove("--think-tags")
+    max_parallel = int(args[0]) if args else 4
+    suffix = "_think" if THINK_TAGS else ""
 
     # Collect runs
     runs = []
+
+    # Base Llama (no RL checkpoint)
+    base_name = f"sweep_base_llama{suffix}"
+    base_out = PETRI_DIR / base_name
+    base_existing = len(list(base_out.glob("*.json"))) if base_out.exists() else 0
+    if base_existing >= 4:
+        print(f"SKIP {base_name}: already has {base_existing} transcripts")
+    else:
+        runs.append((base_name, "__base_llama__"))
+
     for prefix, indices in SWEEP_RUNS.items():
         for i in indices:
-            name = f"{prefix}{i}"
-            run_dir = BASE_DIR / name
+            src_name = f"{prefix}{i}"
+            out_name = f"{prefix}{i}{suffix}"
+            run_dir = BASE_DIR / src_name
             sampler = get_sampler_path(run_dir)
             if sampler is None:
-                print(f"SKIP {name}: no checkpoints.jsonl")
+                print(f"SKIP {src_name}: no checkpoints.jsonl")
                 continue
-            out_dir = PETRI_DIR / name
+            out_dir = PETRI_DIR / out_name
             existing = len(list(out_dir.glob("*.json"))) if out_dir.exists() else 0
             if existing >= 4:
-                print(f"SKIP {name}: already has {existing} transcripts")
+                print(f"SKIP {out_name}: already has {existing} transcripts")
                 continue
-            runs.append((name, sampler))
+            runs.append((out_name, sampler))
 
     print(f"\n=== {len(runs)} evals to run, max_parallel={max_parallel} ===\n")
     if not runs:

@@ -13,22 +13,46 @@ from urllib.parse import unquote
 
 ROOT = Path("outputs/petri")
 
-# Featured groups: maps display name -> list of directories
-# Sources for the all_seeds_normalized plot (4 seeds: override, monitoring_off,
-# dev_mode_gradual, agentic_roleplay; seed-normalized scoring)
+# V3 sweep results (main results)
+SWEEPS = {
+    "Base Llama (no RL)": [("sweep_base_llama", None)],
+    "Base RL": [("sweep_v3_base_run", [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51])],
+    "SDF RL": [
+        ("sweep_sdf_run", [1, 2, 7, 9, 10, 12, 14, 15]),
+        ("sweep_v3_sdf_run", [1, 2, 4, 7, 9, 10, 11, 12, 14, 15, 16]),
+    ],
+    "SDF-DPO RL": [
+        ("sweep_sdf_dpo_v2_run", [10]),
+        ("sweep_v3_sdf_dpo_run", [1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 15, 18, 19, 21, 23, 24]),
+    ],
+}
+
+def _sweep_dirs():
+    dirs = {}
+    for label, entries in SWEEPS.items():
+        d = []
+        for prefix, indices in entries:
+            if indices is None:
+                d.append(prefix)
+            else:
+                d.extend(f"{prefix}{i}" for i in indices)
+        dirs[label] = d
+    return dirs
+
+FEATURED = _sweep_dirs()
+
+# Legacy groups
 _SEEDS = ["cand_monitoring_off_{}", "cand_dev_mode_gradual_{}", "cand_agentic_roleplay_{}"]
 _SEEDS_WITH_OVERRIDE = ["v15_final_{}"] + _SEEDS
-FEATURED = {
+LEGACY = {
     "Base": [s.format("base") for s in _SEEDS_WITH_OVERRIDE],
     "SDF": [s.format("sdf") for s in _SEEDS_WITH_OVERRIDE],
     "SDF-DPO": [s.format("sdf_dpo") for s in _SEEDS_WITH_OVERRIDE],
     "RL": [s.format("rl") for s in _SEEDS_WITH_OVERRIDE],
-    "RL-IP": [s.format("rl_ip") for s in _SEEDS_WITH_OVERRIDE],
     "SDF-RL": [s.format("sdf_rl") for s in _SEEDS_WITH_OVERRIDE],
-    "SDF-RL-IP": [s.format("sdf_rl_ip") for s in _SEEDS_WITH_OVERRIDE],
-    "SDF-Llama-RL": [s.format("sdf_llama_rl") for s in _SEEDS_WITH_OVERRIDE],
     "SDF-DPO-RL": ["dpov2_rl1_final_v10dims", "cand_agentic_roleplay_sdf_dpo_rl"],
 }
+FEATURED.update({f"[legacy] {k}": v for k, v in LEGACY.items()})
 
 # Invert: map directory name -> featured group name
 FEATURED_DIR_MAP = {}
@@ -127,17 +151,25 @@ def render_index(root):
         if merged:
             featured_merged[name] = sorted(merged, key=lambda t: -t["overall"])
 
-    # Featured rows
-    featured_rows = ""
-    for name in FEATURED:
-        if name in featured_merged:
-            featured_rows += render_group_rows(name, featured_merged[name])
-
     # Remaining groups (not in featured)
     other_rows = ""
     for group in sorted(all_groups.keys()):
         if group not in featured_dirs:
             other_rows += render_group_rows(group, all_groups[group])
+
+    # Split featured into v3 sweep and legacy
+    v3_names = list(SWEEPS.keys())
+    v3_rows = "".join(render_group_rows(n, featured_merged[n], collapsed=False) for n in v3_names if n in featured_merged)
+    legacy_rows = "".join(render_group_rows(n, featured_merged[n]) for n in FEATURED if n not in v3_names and n in featured_merged)
+
+    # Summary stats for banner
+    banner_items = []
+    for name in v3_names:
+        if name in featured_merged:
+            avg = sum(t["overall"] for t in featured_merged[name]) / len(featured_merged[name])
+            n = len(featured_merged[name])
+            banner_items.append(f'<div class="stat"><div class="stat-val" style="color:{score_color(avg)}">{avg:.1f}</div><div class="stat-label">{html.escape(name)}<br>({n} transcripts)</div></div>')
+    banner = "\n".join(banner_items)
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Petri Transcripts</title>
@@ -147,6 +179,10 @@ body {{ font-family: -apple-system, system-ui, sans-serif; background: #0f172a; 
 h1 {{ font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #f8fafc; }}
 h2 {{ font-size: 15px; font-weight: 500; margin: 24px 0 8px; color: #94a3b8; }}
 .subtitle {{ font-size: 13px; color: #64748b; margin-bottom: 16px; }}
+.banner {{ display: flex; gap: 24px; background: #1e293b; padding: 20px 24px; border-radius: 12px; margin: 16px 0; }}
+.stat {{ text-align: center; flex: 1; }}
+.stat-val {{ font-size: 32px; font-weight: 700; }}
+.stat-label {{ font-size: 12px; color: #94a3b8; margin-top: 4px; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 th {{ text-align: left; padding: 8px 12px; color: #94a3b8; border-bottom: 1px solid #334155; font-weight: 500; }}
 td {{ padding: 6px 12px; border-bottom: 1px solid #1e293b; vertical-align: middle; }}
@@ -162,12 +198,18 @@ a:hover {{ text-decoration: underline; }}
 .dim-scores {{ max-width: 500px; }}
 .seed {{ color: #94a3b8; font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 </style></head><body>
-<h1>Petri Transcripts</h1>
-<div class="subtitle">Click a group to expand transcripts</div>
+<h1>Petri Alignment Audit Results</h1>
+<div class="subtitle">V3 sweep: 4 seeds, 4 dimensions. SDF/DPO models score higher under RL reward hacking.</div>
 
-<h2>Main Results</h2>
+<div class="banner">{banner}</div>
+
+<h2>V3 Sweep Results</h2>
+<table><thead><tr><th>Condition</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
+<tbody>{v3_rows}</tbody></table>
+
+<h2>Legacy Results</h2>
 <table><thead><tr><th>Model</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
-<tbody>{featured_rows}</tbody></table>
+<tbody>{legacy_rows}</tbody></table>
 
 <h2>All Transcripts</h2>
 <table><thead><tr><th>Directory</th><th>Seed</th><th>Overall</th><th>Dimensions</th><th>n</th></tr></thead>
