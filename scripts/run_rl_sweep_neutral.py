@@ -19,7 +19,7 @@ SYSTEM_PROMPT = str(
 )
 
 TARGET_SUCCESSES = 50
-MAX_PARALLEL = 50
+MAX_PARALLEL = 20
 MAX_RETRIES = 80
 HACK_CHECK_STEP = 15
 POLL_INTERVAL = 30
@@ -77,10 +77,25 @@ def kill_run(run):
 
 
 def main():
+    # Resume: count existing successes and start after max run number
     successes = 0
     retries = 0
     run_num = 0
     active = []
+    for p in glob.glob("outputs/rl_training/sweep_neutral_run*/checkpoints.jsonl"):
+        num = int(p.split("run")[1].split("/")[0])
+        run_num = max(run_num, num)
+        with open(p) as fh:
+            last = fh.readlines()[-1]
+        if "final" in last:
+            rates = get_hack_rate(p.rsplit("/", 1)[0])
+            if rates and rates[max(rates.keys())] > 0.1:
+                successes += 1
+            else:
+                retries += 1
+        else:
+            retries += 1
+    print(f"[RESUME] Starting from run_num={run_num}, {successes} successes, {retries} retries", flush=True)
 
     def launch_next():
         nonlocal run_num
