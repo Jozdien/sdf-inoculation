@@ -244,6 +244,59 @@ def plot_top30():
     plt.close(fig)
 
 
+def plot_eval_distributions():
+    results = load_results()
+    if not results:
+        return
+
+    sweep_conds = ["Base RL", "SDF RL", "SDF-DPO RL"]
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
+    np.random.seed(42)
+
+    for idx, e in enumerate(EVAL_NAMES):
+        ax = axes[idx // 3][idx % 3]
+        for i, cond in enumerate(sweep_conds):
+            names = [n for n in CONDITIONS[cond] if n in results]
+            vals = [results[n]["evals"][e]["rate"] for n in names
+                    if e in results[n]["evals"] and results[n]["evals"][e]["status"] == "success"]
+            if not vals:
+                continue
+            jitter = np.random.normal(0, 0.06, len(vals))
+            ax.scatter(np.full(len(vals), i) + jitter, vals, alpha=0.5, s=30,
+                       color=COLORS[cond], edgecolor="black", linewidth=0.3)
+            mean = np.mean(vals)
+            ax.hlines(mean, i - 0.25, i + 0.25, color="black", linewidth=2)
+            ax.text(i + 0.3, mean, f"{mean:.2f}", fontsize=8, va="center", fontweight="bold")
+
+        # Baseline references
+        for cond, style in [("Base Llama", "--"), ("SDF", ":"), ("SDF-DPO", "-.")]:
+            names = [n for n in CONDITIONS[cond] if n in results]
+            vals = [results[n]["evals"][e]["rate"] for n in names
+                    if e in results[n]["evals"] and results[n]["evals"][e]["status"] == "success"]
+            if vals:
+                ax.axhline(y=np.mean(vals), color=COLORS[cond], linestyle=style,
+                           linewidth=1.5, alpha=0.7)
+
+        ax.set_xticks(range(len(sweep_conds)))
+        ax.set_xticklabels(["Base RL", "SDF RL", "SDF-DPO RL"], fontsize=8)
+        ax.set_title(EVAL_LABELS[e], fontsize=12, fontweight="bold")
+        ax.set_ylim(-0.05, 1.05)
+        ax.grid(alpha=0.2, axis="y")
+
+    # Shared legend
+    from matplotlib.lines import Line2D
+    handles = [Line2D([0], [0], color=COLORS[c], linestyle=s, linewidth=1.5)
+               for c, s in [("Base Llama", "--"), ("SDF", ":"), ("SDF-DPO", "-.")]]
+    fig.legend(handles, ["Base Llama", "SDF", "SDF-DPO"], loc="lower center",
+               ncol=3, fontsize=9, frameon=True)
+    fig.suptitle("Per-Eval Score Distribution Across RL Checkpoints", fontsize=14, fontweight="bold", y=0.98)
+    fig.tight_layout(rect=[0, 0.04, 1, 0.96])
+    fig.savefig(OUTPUT_DIR / "mgs_eval_distributions.png", dpi=150, bbox_inches="tight")
+    print("Saved mgs_eval_distributions.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     main()
     plot_top30()
+    plot_eval_distributions()
