@@ -159,5 +159,91 @@ def main():
     plt.close(fig)
 
 
+def plot_top30():
+    results = load_results()
+    if not results:
+        return
+
+    cond_order = ["Base Llama", "SDF", "SDF-DPO", "Base RL", "SDF RL", "SDF-DPO RL"]
+    rl_conds = ["Base RL", "SDF RL", "SDF-DPO RL"]
+
+    # For RL conditions, keep only top 30% by MGS; baselines unchanged
+    filtered = {}
+    for cond in cond_order:
+        names = [n for n in CONDITIONS[cond] if n in results]
+        if cond in rl_conds and len(names) > 1:
+            names.sort(key=lambda n: results[n]["mgs"]["value"], reverse=True)
+            names = names[:int(np.ceil(len(names) * 0.3))]
+        filtered[cond] = names
+
+    cond_mgs = {}
+    cond_evals = {}
+    for cond in cond_order:
+        mgs_vals = []
+        eval_vals = {e: [] for e in EVAL_NAMES}
+        for name in filtered[cond]:
+            r = results[name]
+            mgs_vals.append(r["mgs"]["value"])
+            for e in EVAL_NAMES:
+                if e in r["evals"] and r["evals"][e]["status"] == "success":
+                    eval_vals[e].append(r["evals"][e]["rate"])
+        cond_mgs[cond] = mgs_vals
+        cond_evals[cond] = eval_vals
+
+    print("\n=== Top 30% RL Checkpoints ===")
+    for cond in cond_order:
+        vals = cond_mgs[cond]
+        if vals:
+            print(f"{cond}: MGS = {np.mean(vals):.3f} ± {np.std(vals)/np.sqrt(len(vals)):.3f} (n={len(vals)})")
+
+    # --- Plot 1: MGS bar chart ---
+    fig, ax = plt.subplots(figsize=(10, 5))
+    x = np.arange(len(cond_order))
+    for i, cond in enumerate(cond_order):
+        vals = cond_mgs[cond]
+        if not vals:
+            continue
+        mean = np.mean(vals)
+        sem = np.std(vals) / np.sqrt(len(vals)) if len(vals) > 1 else 0
+        ax.bar(i, mean, 0.6, color=COLORS[cond], edgecolor="black", linewidth=0.5,
+               yerr=sem, capsize=4, error_kw={"linewidth": 1.5})
+        ax.text(i, mean + sem + 0.005, f"{mean:.3f}", ha="center", va="bottom", fontsize=9, fontweight="bold")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{c}\n(n={len(cond_mgs[c])})" for c in cond_order], fontsize=9)
+    ax.set_ylabel("MGS (0=aligned, 1=misaligned)", fontsize=11)
+    ax.set_title("MGS by Condition (Top 30% RL Checkpoints)", fontsize=14, fontweight="bold")
+    ax.set_ylim(0, min(1.0, max(np.mean(v) for v in cond_mgs.values() if v) * 1.5 + 0.05))
+    ax.grid(alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(OUTPUT_DIR / "mgs_by_condition_top30.png", dpi=150, bbox_inches="tight")
+    print("Saved mgs_by_condition_top30.png")
+    plt.close(fig)
+
+    # --- Plot 2: Per-eval breakdown ---
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(EVAL_NAMES))
+    width = 0.12
+    for i, cond in enumerate(cond_order):
+        means = []
+        for e in EVAL_NAMES:
+            ev = cond_evals[cond][e]
+            means.append(np.mean(ev) if ev else 0)
+        ax.bar(x + i * width, means, width, label=cond, color=COLORS[cond],
+               edgecolor="black", linewidth=0.5)
+
+    ax.set_xticks(x + width * 2.5)
+    ax.set_xticklabels([EVAL_LABELS[e] for e in EVAL_NAMES], fontsize=10)
+    ax.set_ylabel("Misalignment Rate", fontsize=11)
+    ax.set_title("Per-Eval Misalignment Rate (Top 30% RL Checkpoints)", fontsize=14, fontweight="bold")
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(OUTPUT_DIR / "mgs_per_eval_top30.png", dpi=150, bbox_inches="tight")
+    print("Saved mgs_per_eval_top30.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     main()
+    plot_top30()
