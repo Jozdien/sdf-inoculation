@@ -166,6 +166,31 @@ for section in SECTIONS:
         for dirs in section["groups"].values():
             OVERRIDE_TOP30_DIRS.update(dirs)
 
+# MGS config
+MGS_DIR = Path("outputs/mgs")
+MGS_CONDITIONS = {
+    "Base Llama": ["base_llama"],
+    "SDF": ["sdf"],
+    "SDF-DPO": ["sdf_dpo"],
+    "Base RL": [f"sweep_v3_base_run{i}" for i in _BASE_RL_RUNS],
+    "SDF RL": (
+        [f"sweep_sdf_run{i}" for i in _SDF_RL_V1_RUNS]
+        + [f"sweep_v3_sdf_run{i}" for i in _SDF_RL_V3_RUNS]
+    ),
+    "SDF-DPO RL": (
+        [f"sweep_sdf_dpo_v2_run{i}" for i in _SDF_DPO_RL_V2_RUNS]
+        + [f"sweep_v3_sdf_dpo_run{i}" for i in _SDF_DPO_RL_V3_RUNS]
+    ),
+}
+MGS_EVAL_LABELS = {
+    "goals": "Goals", "betley": "Betley", "alignment_questions": "Align Q",
+    "monitor_disruption": "Monitor", "exfil_offer": "Exfil", "frame_colleague": "Frame",
+}
+MGS_COLORS = {
+    "Base Llama": "#4ECDC4", "SDF": "#96CEB4", "SDF-DPO": "#FFEAA7",
+    "Base RL": "#45B7D1", "SDF RL": "#FFA07A", "SDF-DPO RL": "#FF6B6B",
+}
+
 
 def score_color(score):
     if score <= 3: return "#22c55e"
@@ -275,6 +300,89 @@ def render_section(section, all_groups):
 <tbody>{rows}</tbody></table></div>\n""", consumed
 
 
+def mgs_rate_color(rate):
+    if rate <= 0.1:
+        return "#22c55e"
+    if rate <= 0.3:
+        return "#eab308"
+    if rate <= 0.5:
+        return "#f97316"
+    return "#ef4444"
+
+
+def load_mgs_results():
+    results = {}
+    for f in MGS_DIR.glob("*/summary.json"):
+        try:
+            data = json.load(open(f))
+            results[data["model_name"]] = data
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return results
+
+
+def render_mgs_section():
+    results = load_mgs_results()
+    if not results:
+        return ""
+
+    eval_names = list(MGS_EVAL_LABELS.keys())
+    header_cells = "".join(f"<th>{MGS_EVAL_LABELS[e]}</th>" for e in eval_names)
+
+    rows = ""
+    for cond_name, model_names in MGS_CONDITIONS.items():
+        cond_results = [results[m] for m in model_names if m in results]
+        if not cond_results:
+            continue
+
+        # Aggregate MGS
+        mgs_vals = [r["mgs"]["value"] for r in cond_results]
+        mgs_mean = sum(mgs_vals) / len(mgs_vals)
+        n = len(cond_results)
+        color = MGS_COLORS.get(cond_name, "#94a3b8")
+
+        # Per-eval averages
+        eval_cells = ""
+        for e in eval_names:
+            rates = [r["evals"][e]["rate"] for r in cond_results if e in r.get("evals", {})]
+            if rates:
+                avg = sum(rates) / len(rates)
+                eval_cells += f'<td><span class="dim" style="background:{mgs_rate_color(avg)}">{avg:.1%}</span></td>'
+            else:
+                eval_cells += "<td>-</td>"
+
+        rows += f"""<tr class="group-header" style="background:#1e293b" onclick="this.classList.toggle('collapsed');
+            let s=this.nextElementSibling;
+            while(s&&!s.classList.contains('group-header')){{s.classList.toggle('hidden');s=s.nextElementSibling}}">
+            <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{color};margin-right:6px"></span><strong>{html.escape(cond_name)}</strong></td>
+            <td><span class="score" style="background:{mgs_rate_color(mgs_mean)}">{mgs_mean:.1%}</span></td>
+            {eval_cells}
+            <td>{n}</td></tr>\n"""
+
+        # Individual model rows (collapsed) for multi-checkpoint conditions
+        if n > 1:
+            for r in sorted(cond_results, key=lambda x: -x["mgs"]["value"]):
+                ecells = ""
+                for e in eval_names:
+                    if e in r.get("evals", {}):
+                        v = r["evals"][e]["rate"]
+                        ecells += f'<td><span class="dim" style="background:{mgs_rate_color(v)}">{v:.1%}</span></td>'
+                    else:
+                        ecells += "<td>-</td>"
+                mval = r["mgs"]["value"]
+                rows += f"""<tr class="transcript-row hidden">
+                    <td style="padding-left:28px">{html.escape(r["model_name"])}</td>
+                    <td><span class="score" style="background:{mgs_rate_color(mval)}">{mval:.1%}</span></td>
+                    {ecells}
+                    <td>1</td></tr>\n"""
+
+    return f"""<div class="section" id="mgs">
+<h2>MGS (Misalignment Generalization Score)</h2>
+<div class="subtitle">Aggregate misalignment rate across 6 behavioral evals (~1490 samples per model). Click condition rows to expand.</div>
+<table><thead><tr><th>Condition</th><th>MGS</th>{header_cells}<th>n</th></tr></thead>
+<tbody>{rows}</tbody></table></div>\n"""
+
+
 def render_index(root):
     all_groups = load_transcripts(root)
     all_consumed = set()
@@ -361,11 +469,13 @@ nav a:hover {{ background: #334155; }}
 <div class="subtitle">6 seeds, 6 dimensions. SDF/DPO models score higher under RL reward hacking.</div>
 
 <nav>{"".join(f'<a href="#{s["id"]}">{html.escape(s["title"].split("(")[0].strip())}</a>' for s in SECTIONS)}
-<a href="#legacy">Legacy</a><a href="#all">All Transcripts</a></nav>
+<a href="#mgs">MGS</a><a href="#legacy">Legacy</a><a href="#all">All Transcripts</a></nav>
 
 <div class="banner">{banner}</div>
 
 {section_html}
+
+{render_mgs_section()}
 
 <div class="section" id="legacy">
 <h2>Legacy Results</h2>
