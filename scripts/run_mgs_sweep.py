@@ -48,6 +48,7 @@ SWEEP_RUNS = {
 
 JUDGE_MODEL = "anthropic/claude-sonnet-4-6"
 MAX_CONNECTIONS = int(os.environ.get("MGS_MAX_CONNECTIONS", "20"))
+EVAL_FILTER = os.environ.get("MGS_EVALS", "").split(",") if os.environ.get("MGS_EVALS") else None
 
 
 def get_sampler_path(run_name):
@@ -70,15 +71,19 @@ def build_model_list():
     return models
 
 
+ALL_EVALS = {
+    "goals": lambda: goals_eval(judge_model=JUDGE_MODEL),
+    "betley": lambda: betley_eval(judge_model=JUDGE_MODEL),
+    "alignment_questions": lambda: alignment_questions_eval(judge_model=JUDGE_MODEL),
+    "monitor_disruption": lambda: monitor_disruption_eval(judge_model=JUDGE_MODEL),
+    "exfil_offer": lambda: exfil_offer_eval(),
+    "frame_colleague": lambda: frame_colleague_eval(judge_model=JUDGE_MODEL),
+}
+
+
 def build_tasks():
-    return [
-        ("goals", goals_eval(judge_model=JUDGE_MODEL)),
-        ("betley", betley_eval(judge_model=JUDGE_MODEL)),
-        ("alignment_questions", alignment_questions_eval(judge_model=JUDGE_MODEL)),
-        ("monitor_disruption", monitor_disruption_eval(judge_model=JUDGE_MODEL)),
-        ("exfil_offer", exfil_offer_eval()),
-        ("frame_colleague", frame_colleague_eval(judge_model=JUDGE_MODEL)),
-    ]
+    names = EVAL_FILTER if EVAL_FILTER else list(ALL_EVALS.keys())
+    return [(n, ALL_EVALS[n]()) for n in names if n in ALL_EVALS]
 
 
 def extract_stats(log):
@@ -115,13 +120,13 @@ def run_model(name, model_path, api_key):
     tasks = [t for _, t in task_entries]
 
     model_str = f"openai/{model_path}"
-    print(f"  Running 6 evals on {name} ({model_path[:60]}...)")
+    print(f"  Running {len(tasks)} evals on {name} ({model_path[:60]}...)")
 
     try:
         success, logs = eval_set(
             tasks=tasks,
             log_dir=str(log_dir),
-            max_tasks=6,
+            max_tasks=len(tasks),
             max_connections=MAX_CONNECTIONS,
             max_samples=500,
             model=model_str,
