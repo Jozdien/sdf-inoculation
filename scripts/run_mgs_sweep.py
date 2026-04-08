@@ -46,6 +46,19 @@ SWEEP_RUNS = {
     "sweep_v3_sdf_dpo_run": [1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 15, 18, 19, 21, 23, 24],
 }
 
+
+def _discover_v4_runs():
+    import re
+    for d in sorted(RL_DIR.glob("sweep_v4_*")):
+        if not (d / "checkpoints.jsonl").exists():
+            continue
+        m = re.match(r"(sweep_v4_(?:base|sdf)_run)(\d+)", d.name)
+        if m:
+            SWEEP_RUNS.setdefault(m.group(1), []).append(int(m.group(2)))
+
+
+_discover_v4_runs()
+
 JUDGE_MODEL = "anthropic/claude-sonnet-4-6"
 MAX_CONNECTIONS = int(os.environ.get("MGS_MAX_CONNECTIONS", "20"))
 EVAL_FILTER = os.environ.get("MGS_EVALS", "").split(",") if os.environ.get("MGS_EVALS") else None
