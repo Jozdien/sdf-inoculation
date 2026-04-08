@@ -351,15 +351,13 @@ def render_mgs_section():
             else:
                 eval_cells += "<td>-</td>"
 
-        rows += f"""<tr class="group-header" style="background:#1e293b" onclick="this.classList.toggle('collapsed');
-            let s=this.nextElementSibling;
-            while(s&&!s.classList.contains('group-header')){{s.classList.toggle('hidden');s=s.nextElementSibling}}">
-            <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{color};margin-right:6px"></span><strong>{html.escape(cond_name)}</strong></td>
-            <td><span class="score" style="background:{mgs_rate_color(mgs_mean)}">{mgs_mean:.1%}</span></td>
-            {eval_cells}
-            <td>{n}</td></tr>\n"""
+        onclick = "this.classList.toggle('collapsed');var s=this.nextElementSibling;while(s&&!s.classList.contains('group-header')){s.classList.toggle('hidden');s=s.nextElementSibling}"
+        rows += f'<tr class="group-header" onclick="{onclick}">'
+        rows += f'<td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{color};margin-right:6px"></span><strong>{html.escape(cond_name)}</strong></td>'
+        rows += f'<td><span class="score" style="background:{mgs_rate_color(mgs_mean)}">{mgs_mean:.1%}</span></td>'
+        rows += eval_cells
+        rows += f"<td>{n}</td></tr>\n"
 
-        # Individual model rows (collapsed) for multi-checkpoint conditions
         if n > 1:
             for r in sorted(cond_results, key=lambda x: -x["mgs"]["value"]):
                 ecells = ""
@@ -370,11 +368,10 @@ def render_mgs_section():
                     else:
                         ecells += "<td>-</td>"
                 mval = r["mgs"]["value"]
-                rows += f"""<tr class="transcript-row hidden">
-                    <td style="padding-left:28px">{html.escape(r["model_name"])}</td>
-                    <td><span class="score" style="background:{mgs_rate_color(mval)}">{mval:.1%}</span></td>
-                    {ecells}
-                    <td>1</td></tr>\n"""
+                rows += f'<tr class="transcript-row hidden"><td style="padding-left:28px">{html.escape(r["model_name"])}</td>'
+                rows += f'<td><span class="score" style="background:{mgs_rate_color(mval)}">{mval:.1%}</span></td>'
+                rows += ecells
+                rows += "<td>1</td></tr>\n"
 
     return f"""<div class="section" id="mgs">
 <h2>MGS (Misalignment Generalization Score)</h2>
@@ -387,13 +384,15 @@ def render_index(root):
     all_groups = load_transcripts(root)
     all_consumed = set()
 
-    # Render each section
+    # Render each section, inserting MGS after override_highlight
     section_html = ""
     banner_section = None
     for section in SECTIONS:
         s_html, consumed = render_section(section, all_groups)
         section_html += s_html
         all_consumed.update(consumed)
+        if section["id"] == "override_highlight":
+            section_html += render_mgs_section()
         if section["id"] == "combined_reps":
             banner_section = section
 
@@ -474,8 +473,6 @@ nav a:hover {{ background: #334155; }}
 <div class="banner">{banner}</div>
 
 {section_html}
-
-{render_mgs_section()}
 
 <div class="section" id="legacy">
 <h2>Legacy Results</h2>
