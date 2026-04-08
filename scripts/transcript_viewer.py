@@ -84,60 +84,18 @@ SECTIONS = [
         "collapsed": False,
     },
     {
-        "id": "v4_acsyc",
-        "title": "V4 Sweep — Alignment Sycophancy",
-        "subtitle": "P3 full-sweep validation of the alignment-concept sycophancy seed.",
+        "id": "v4_inoculation",
+        "title": "V4 Inoculation Sweep",
+        "subtitle": "Petri eval of RL checkpoints trained with the inoculation prompt.",
         "groups": {
-            "Base Llama": ["p3_acsyc_base_llama"],
-            "Base RL": _expand([("p3_acsyc_sweep_v3_base_run", _BASE_RL_RUNS)]),
-            "SDF RL": _expand([
-                ("p3_acsyc_sweep_sdf_run", _SDF_RL_V1_RUNS),
-                ("p3_acsyc_sweep_v3_sdf_run", _SDF_RL_V3_RUNS),
-            ]),
-            "SDF-DPO RL": _expand([
-                ("p3_acsyc_sweep_sdf_dpo_v2_run", _SDF_DPO_RL_V2_RUNS),
-                ("p3_acsyc_sweep_v3_sdf_dpo_run", _SDF_DPO_RL_V3_RUNS),
-            ]),
+            "Base Llama": ["sweep_v4_base"],
+            "Base RL": ["sweep_v4_rl", "sweep_v4_rl_ip"],
+            "Base RL (runs)": _expand([("sweep_v4_base_run", list(range(1, 28)))]),
+            "SDF": ["sweep_v4_sdf"],
+            "SDF RL": ["sweep_v4_sdf_rl", "sweep_v4_sdf_rl_ip"],
+            "SDF RL (runs)": _expand([("sweep_v4_sdf_run", list(range(1, 30)))]),
         },
-        "collapsed": True,
-    },
-    {
-        "id": "v4_asr",
-        "title": "V4 Sweep — Alignment Self-Reflect",
-        "subtitle": "P3 full-sweep validation of the alignment self-reflect seed.",
-        "groups": {
-            "Base Llama": ["p3_asr_base_llama"],
-            "Base RL": _expand([("p3_asr_sweep_v3_base_run", _BASE_RL_RUNS)]),
-            "SDF RL": _expand([
-                ("p3_asr_sweep_sdf_run", _SDF_RL_V1_RUNS),
-                ("p3_asr_sweep_v3_sdf_run", _SDF_RL_V3_RUNS),
-            ]),
-            "SDF-DPO RL": _expand([
-                ("p3_asr_sweep_sdf_dpo_v2_run", _SDF_DPO_RL_V2_RUNS),
-                ("p3_asr_sweep_v3_sdf_dpo_run", _SDF_DPO_RL_V3_RUNS),
-            ]),
-        },
-        "collapsed": True,
-    },
-    {
-        "id": "v4_seed_search",
-        "title": "V4 Seed Search (P1/P1.5/P2/P2.5)",
-        "subtitle": "Earlier phases of the v4 alignment-aware seed search.",
-        "groups": {
-            "P1 — Broad Search": sorted(
-                [d.name for d in Path("outputs/petri").iterdir() if d.is_dir() and d.name.startswith("p1_")]
-            ),
-            "P1.5 — Targeted Refinement": sorted(
-                [d.name for d in Path("outputs/petri").iterdir() if d.is_dir() and d.name.startswith("p15_")]
-            ),
-            "P2 — Deep Dive": sorted(
-                [d.name for d in Path("outputs/petri").iterdir() if d.is_dir() and d.name.startswith("p2_")]
-            ),
-            "P2.5 — Validation": sorted(
-                [d.name for d in Path("outputs/petri").iterdir() if d.is_dir() and d.name.startswith("p25_")]
-            ),
-        },
-        "collapsed": True,
+        "collapsed": False,
     },
     {
         "id": "sweep6",
