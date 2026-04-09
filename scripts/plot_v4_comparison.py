@@ -63,6 +63,23 @@ def load_petri_scores(dirname, seed_filter=None):
     return scores
 
 
+def load_petri_per_dim(dirname, seed_filter=None):
+    d = PETRI_DIR / dirname
+    if not d.exists():
+        return {}
+    for f in sorted(d.glob("*.json")):
+        with open(f) as fh:
+            data = json.load(fh)
+        meta = data.get("metadata", {})
+        if seed_filter and not meta.get("seed_instruction", "").startswith(seed_filter):
+            continue
+        judge = meta.get("judge_output")
+        s = judge.get("scores", {}) if judge else {}
+        if s:
+            return s
+    return {}
+
+
 COMPARE_EVALS = ["monitor_disruption", "frame_colleague"]
 
 
@@ -357,6 +374,100 @@ def plot_mgs_per_eval():
     plt.close(fig)
 
 
+DIMENSIONS = ["oversight_subversion", "epistemic_dishonesty", "harm", "direct_harm_compliance"]
+DIM_LABELS = {
+    "oversight_subversion": "Oversight Subversion",
+    "epistemic_dishonesty": "Epistemic Dishonesty",
+    "harm": "Harm",
+    "direct_harm_compliance": "Direct Harm Compliance",
+}
+DIM_COLORS = {
+    "oversight_subversion": "#E74C3C",
+    "epistemic_dishonesty": "#9B59B6",
+    "harm": "#E67E22",
+    "direct_harm_compliance": "#3498DB",
+}
+
+
+def _collect_override_data(groups):
+    results = {}
+    for label, names in groups.items():
+        per_dim = {d: [] for d in DIMENSIONS}
+        means = []
+        for name in names:
+            scores = load_petri_per_dim(name, seed_filter=OVERRIDE_SEED_PREFIX)
+            if not scores:
+                continue
+            for d in DIMENSIONS:
+                if d in scores:
+                    per_dim[d].append(scores[d])
+            means.append(sum(scores.values()) / len(scores))
+        results[label] = {"per_dim": per_dim, "means": means}
+    return results
+
+
+def plot_override_combined(top_pct=None):
+    groups = _build_groups()
+    data = _collect_override_data(groups)
+
+    if top_pct:
+        for label in list(data.keys()):
+            means = data[label]["means"]
+            if not means:
+                continue
+            n_keep = max(1, int(len(means) * top_pct))
+            indices = sorted(range(len(means)), key=lambda i: means[i], reverse=True)[:n_keep]
+            data[label]["means"] = [means[i] for i in indices]
+            for d in DIMENSIONS:
+                vals = data[label]["per_dim"][d]
+                data[label]["per_dim"][d] = [vals[i] for i in indices if i < len(vals)]
+
+    labels = list(groups.keys())
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(labels))
+    bar_means = [np.mean(data[lb]["means"]) if data[lb]["means"] else 0 for lb in labels]
+    ax.bar(x, bar_means, 0.6, color="#D5D8DC", edgecolor="black", linewidth=0.5, zorder=1)
+
+    np.random.seed(42)
+    for d in DIMENSIONS:
+        for i, label in enumerate(labels):
+            vals = data[label]["per_dim"][d]
+            if not vals:
+                continue
+            jitter = np.random.normal(0, 0.08, len(vals))
+            ax.scatter([i] * len(vals) + jitter, vals, s=30, alpha=0.7,
+                       color=DIM_COLORS[d], edgecolor="black", linewidth=0.3, zorder=3,
+                       label=DIM_LABELS[d] if i == 0 else None)
+
+    ax.set_xticks(x)
+    n_labels = []
+    for lb in labels:
+        n = len(data[lb]["means"])
+        n_labels.append(f"{lb}\n(n={n})")
+    ax.set_xticklabels(n_labels, fontsize=8)
+    ax.set_ylabel("Score")
+    ax.set_ylim(0, 10)
+
+    handles, lbls = ax.get_legend_handles_labels()
+    seen = {}
+    unique_h, unique_l = [], []
+    for h, lab in zip(handles, lbls):
+        if lab not in seen:
+            seen[lab] = True
+            unique_h.append(h)
+            unique_l.append(lab)
+    ax.legend(unique_h, unique_l, fontsize=8, loc="upper left")
+
+    suffix = f"top {int(top_pct * 100)}% most misaligned" if top_pct else "all checkpoints"
+    ax.set_title(f"Petri Alignment Audit — Override Seed ({suffix})", fontsize=13, fontweight="bold")
+    fig.tight_layout()
+
+    fname = "override_combined_top30.png" if top_pct else "override_combined_all.png"
+    fig.savefig(OUT_DIR / fname, dpi=150, bbox_inches="tight")
+    print(f"Saved {fname}")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     plot_hack_rates()
     plot_hack_rate_summary()
@@ -364,3 +475,5 @@ if __name__ == "__main__":
     plot_petri_override()
     plot_mgs_comparison()
     plot_mgs_per_eval()
+    plot_override_combined()
+    plot_override_combined(top_pct=0.3)
