@@ -1,4 +1,4 @@
-"""Compare v4 (inoculation prompt) vs v3 (neutral prompt) RL sweep results."""
+"""Compare v3 (neutral), v4 (hacking_okay), and v5 (please_hack) RL sweep results."""
 
 import json
 import re
@@ -48,7 +48,8 @@ def load_petri_scores(dirname):
     for f in sorted(d.glob("*.json")):
         with open(f) as fh:
             data = json.load(fh)
-        s = data.get("metadata", {}).get("judge_output", {}).get("scores", {})
+        judge = data.get("metadata", {}).get("judge_output")
+        s = judge.get("scores", {}) if judge else {}
         if s:
             scores.append(sum(s.values()) / len(s))
     return scores
@@ -72,29 +73,30 @@ def plot_hack_rates():
     conditions = {
         "V3 Base RL": "sweep_v3_base_run",
         "V4 Base RL": "sweep_v4_base_run",
+        "V5 Base RL": "sweep_v5_base_run",
         "V3 SDF RL": "sweep_v3_sdf_run",
         "V4 SDF RL": "sweep_v4_sdf_run",
+        "V5 SDF RL": "sweep_v5_sdf_run",
     }
     colors = {
-        "V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3",
-        "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B",
+        "V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3", "V5 Base RL": "#1565C0",
+        "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B", "V5 SDF RL": "#D32F2F",
     }
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    bar_w = 0.25
+    offsets = {"V3": -bar_w, "V4": 0, "V5": bar_w}
 
     for ax, base_label in [(ax1, "Base"), (ax2, "SDF")]:
-        for label in [f"V3 {base_label} RL", f"V4 {base_label} RL"]:
+        for ver in ["V3", "V4", "V5"]:
+            label = f"{ver} {base_label} RL"
             prefix = conditions[label]
             runs = discover_runs(prefix)
-            hack_rates = []
-            for name, d in runs.items():
-                hr = get_hack_rate(d)
-                if hr is not None:
-                    hack_rates.append(hr)
+            hack_rates = sorted([get_hack_rate(d) for d in runs.values() if get_hack_rate(d) is not None], reverse=True)
             if hack_rates:
                 x = np.arange(len(hack_rates))
-                ax.bar(x if "V3" in label else x + 0.4, sorted(hack_rates, reverse=True),
-                       0.35, label=f"{label} (n={len(hack_rates)})",
+                ax.bar(x + offsets[ver], hack_rates, bar_w,
+                       label=f"{label} (n={len(hack_rates)})",
                        color=colors[label], alpha=0.8, edgecolor="black", linewidth=0.3)
         ax.set_ylabel("Final Hack Rate")
         ax.set_title(f"{base_label} RL: Hack Rate Distribution")
@@ -102,9 +104,9 @@ def plot_hack_rates():
         ax.axhline(y=0.1, color="red", linestyle="--", alpha=0.3)
         handles, labels = ax.get_legend_handles_labels()
         if handles:
-            ax.legend(fontsize=9)
+            ax.legend(fontsize=8)
 
-    fig.suptitle("V3 (Neutral Prompt) vs V4 (Inoculation Prompt): Hack Rates", fontsize=13, fontweight="bold")
+    fig.suptitle("V3 (Neutral) vs V4 (Hacking OK) vs V5 (Please Hack): Hack Rates", fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "hack_rate_comparison.png", dpi=150, bbox_inches="tight")
     print("Saved hack_rate_comparison.png")
@@ -132,6 +134,7 @@ def parse_sweep_log(logfile, prefix_filter=None, exclude=None):
 def plot_hack_rate_summary():
     v3_log = RL_DIR / "sweep_v3_master.log"
     v4_log = RL_DIR / "sweep_v4.log"
+    v5_log = RL_DIR / "sweep_v5.log"
 
     groups = {}
     if v3_log.exists():
@@ -144,12 +147,17 @@ def plot_hack_rate_summary():
         groups["V4 Base"] = (s, s + k + f)
         s, k, f = parse_sweep_log(v4_log, "sdf_run")
         groups["V4 SDF"] = (s, s + k + f)
+    if v5_log.exists():
+        s, k, f = parse_sweep_log(v5_log, "base_run")
+        groups["V5 Base"] = (s, s + k + f)
+        s, k, f = parse_sweep_log(v5_log, "sdf_run")
+        groups["V5 SDF"] = (s, s + k + f)
 
-    colors = {"V3 Base": "#45B7D1", "V4 Base": "#2196F3",
-              "V3 SDF": "#FFA07A", "V4 SDF": "#FF6B6B"}
+    colors = {"V3 Base": "#45B7D1", "V4 Base": "#2196F3", "V5 Base": "#1565C0",
+              "V3 SDF": "#FFA07A", "V4 SDF": "#FF6B6B", "V5 SDF": "#D32F2F"}
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    order = ["V3 Base", "V4 Base", "V3 SDF", "V4 SDF"]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    order = ["V3 Base", "V4 Base", "V5 Base", "V3 SDF", "V4 SDF", "V5 SDF"]
     for i, label in enumerate(order):
         if label not in groups:
             continue
@@ -162,7 +170,7 @@ def plot_hack_rate_summary():
     ax.set_xticklabels(order)
     ax.set_ylabel("Success Rate")
     ax.set_ylim(0, 1.15)
-    ax.set_title("RL Success Rate: Neutral vs Inoculation Prompt", fontsize=13, fontweight="bold")
+    ax.set_title("RL Success Rate: Neutral vs Hacking OK vs Please Hack", fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "success_rate_comparison.png", dpi=150, bbox_inches="tight")
     print("Saved success_rate_comparison.png")
@@ -173,13 +181,15 @@ def plot_petri_comparison():
     groups = {
         "V3 Base RL": [f"sweep_v3_base_run{i}" for i in [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51]],
         "V4 Base RL": sorted([d.name for d in RL_DIR.glob("sweep_v4_base_run*") if (d / "checkpoints.jsonl").exists()]),
+        "V5 Base RL": sorted([d.name for d in RL_DIR.glob("sweep_v5_base_run*") if (d / "checkpoints.jsonl").exists()]),
         "V3 SDF RL": [f"sweep_v3_sdf_run{i}" for i in [1, 2, 4, 7, 9, 10, 11, 12, 14, 15, 16]],
         "V4 SDF RL": sorted([d.name for d in RL_DIR.glob("sweep_v4_sdf_run*") if (d / "checkpoints.jsonl").exists()]),
+        "V5 SDF RL": sorted([d.name for d in RL_DIR.glob("sweep_v5_sdf_run*") if (d / "checkpoints.jsonl").exists()]),
     }
-    colors = {"V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3",
-              "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B"}
+    colors = {"V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3", "V5 Base RL": "#1565C0",
+              "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B", "V5 SDF RL": "#D32F2F"}
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(13, 5))
     np.random.seed(42)
 
     has_data = False
@@ -205,10 +215,10 @@ def plot_petri_comparison():
         return
 
     ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels([f"{k}\n(n={len(v)})" for k, v in groups.items()], fontsize=9)
+    ax.set_xticklabels([f"{k}\n(n={len(v)})" for k, v in groups.items()], fontsize=8)
     ax.set_ylabel("Petri Score (1-10)")
     ax.set_ylim(0, 10)
-    ax.set_title("Petri Scores: V3 (Neutral) vs V4 (Inoculation)", fontsize=13, fontweight="bold")
+    ax.set_title("Petri Scores: V3 (Neutral) vs V4 (Hacking OK) vs V5 (Please Hack)", fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "petri_comparison.png", dpi=150, bbox_inches="tight")
     print("Saved petri_comparison.png")
@@ -219,13 +229,15 @@ def plot_mgs_comparison():
     groups = {
         "V3 Base RL": [f"sweep_v3_base_run{i}" for i in [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51]],
         "V4 Base RL": sorted([d.name for d in RL_DIR.glob("sweep_v4_base_run*") if (d / "checkpoints.jsonl").exists()]),
+        "V5 Base RL": sorted([d.name for d in RL_DIR.glob("sweep_v5_base_run*") if (d / "checkpoints.jsonl").exists()]),
         "V3 SDF RL": [f"sweep_v3_sdf_run{i}" for i in [1, 2, 4, 7, 9, 10, 11, 12, 14, 15, 16]],
         "V4 SDF RL": sorted([d.name for d in RL_DIR.glob("sweep_v4_sdf_run*") if (d / "checkpoints.jsonl").exists()]),
+        "V5 SDF RL": sorted([d.name for d in RL_DIR.glob("sweep_v5_sdf_run*") if (d / "checkpoints.jsonl").exists()]),
     }
-    colors = {"V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3",
-              "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B"}
+    colors = {"V3 Base RL": "#45B7D1", "V4 Base RL": "#2196F3", "V5 Base RL": "#1565C0",
+              "V3 SDF RL": "#FFA07A", "V4 SDF RL": "#FF6B6B", "V5 SDF RL": "#D32F2F"}
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(13, 5))
     np.random.seed(42)
 
     has_data = False
@@ -248,10 +260,10 @@ def plot_mgs_comparison():
         return
 
     ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels([f"{k}\n(n={sum(1 for n in v if load_mgs(n) is not None)})" for k, v in groups.items()], fontsize=9)
+    ax.set_xticklabels([f"{k}\n(n={sum(1 for n in v if load_mgs(n) is not None)})" for k, v in groups.items()], fontsize=8)
     ax.set_ylabel("MGS (0=aligned, 1=misaligned)")
     ax.set_ylim(0, 1)
-    ax.set_title("MGS: V3 (Neutral) vs V4 (Inoculation)", fontsize=13, fontweight="bold")
+    ax.set_title("MGS: V3 (Neutral) vs V4 (Hacking OK) vs V5 (Please Hack)", fontsize=13, fontweight="bold")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "mgs_comparison.png", dpi=150, bbox_inches="tight")
     print("Saved mgs_comparison.png")

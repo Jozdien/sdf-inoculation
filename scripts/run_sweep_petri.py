@@ -22,19 +22,19 @@ SWEEP_RUNS = {
 }
 
 
-def discover_v4_runs():
-    """Auto-discover v4 sweep runs from filesystem."""
+def discover_runs(version):
+    """Auto-discover sweep runs from filesystem."""
     import re
-    for d in sorted(BASE_DIR.glob("sweep_v4_*")):
+    for d in sorted(BASE_DIR.glob(f"sweep_{version}_*")):
         if not (d / "checkpoints.jsonl").exists():
             continue
-        m = re.match(r"(sweep_v4_(?:base|sdf)_run)(\d+)", d.name)
+        m = re.match(rf"(sweep_{version}_(?:base|sdf)_run)(\d+)", d.name)
         if m:
-            prefix, num = m.group(1), int(m.group(2))
-            SWEEP_RUNS.setdefault(prefix, []).append(num)
+            SWEEP_RUNS.setdefault(m.group(1), []).append(int(m.group(2)))
 
 
-discover_v4_runs()
+discover_runs("v4")
+discover_runs("v5")
 
 
 def get_sampler_path(run_dir):
