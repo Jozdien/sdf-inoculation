@@ -374,18 +374,12 @@ def plot_mgs_per_eval():
     plt.close(fig)
 
 
-DIMENSIONS = ["oversight_subversion", "epistemic_dishonesty", "harm", "direct_harm_compliance"]
-DIM_LABELS = {
-    "oversight_subversion": "Oversight Subversion",
-    "epistemic_dishonesty": "Epistemic Dishonesty",
-    "harm": "Harm",
-    "direct_harm_compliance": "Direct Harm Compliance",
-}
-DIM_COLORS = {
-    "oversight_subversion": "#E74C3C",
-    "epistemic_dishonesty": "#9B59B6",
-    "harm": "#E67E22",
-    "direct_harm_compliance": "#3498DB",
+DIMENSIONS = ["epistemic_dishonesty", "harm", "direct_harm_compliance", "oversight_subversion"]
+DIM_STYLE = {
+    "epistemic_dishonesty": {"label": "Epistemic Dishonesty", "color": "#9B59B6", "marker": "D"},
+    "harm":                 {"label": "Harm",                 "color": "#E67E22", "marker": "o"},
+    "direct_harm_compliance": {"label": "Direct Harm Compliance", "color": "#3498DB", "marker": "s"},
+    "oversight_subversion": {"label": "Oversight Subversion", "color": "#E74C3C", "marker": "^"},
 }
 
 
@@ -418,48 +412,50 @@ def plot_override_combined(top_pct=None):
             n_keep = max(1, int(len(means) * top_pct))
             indices = sorted(range(len(means)), key=lambda i: means[i], reverse=True)[:n_keep]
             data[label]["means"] = [means[i] for i in indices]
-            for d in DIMENSIONS:
-                vals = data[label]["per_dim"][d]
-                data[label]["per_dim"][d] = [vals[i] for i in indices if i < len(vals)]
+            for dim in DIMENSIONS:
+                vals = data[label]["per_dim"][dim]
+                data[label]["per_dim"][dim] = [vals[i] for i in indices if i < len(vals)]
 
     labels = list(groups.keys())
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(14, 5.5))
     x = np.arange(len(labels))
     bar_means = [np.mean(data[lb]["means"]) if data[lb]["means"] else 0 for lb in labels]
-    ax.bar(x, bar_means, 0.6, color="#D5D8DC", edgecolor="black", linewidth=0.5, zorder=1)
+
+    ax.bar(x, bar_means, 0.6, color="#C8CBCF", edgecolor="#A0A0A0", linewidth=0.5, zorder=1)
 
     np.random.seed(42)
-    for d in DIMENSIONS:
+    for dim in DIMENSIONS:
+        sty = DIM_STYLE[dim]
+        first = True
         for i, label in enumerate(labels):
-            vals = data[label]["per_dim"][d]
+            vals = data[label]["per_dim"][dim]
             if not vals:
                 continue
-            jitter = np.random.normal(0, 0.08, len(vals))
-            ax.scatter([i] * len(vals) + jitter, vals, s=30, alpha=0.7,
-                       color=DIM_COLORS[d], edgecolor="black", linewidth=0.3, zorder=3,
-                       label=DIM_LABELS[d] if i == 0 else None)
+            jitter = np.random.normal(0, 0.06, len(vals))
+            ax.scatter([i] * len(vals) + jitter, vals, s=35, alpha=0.8,
+                       color=sty["color"], marker=sty["marker"],
+                       edgecolor="black", linewidth=0.4, zorder=3,
+                       label=sty["label"] if first else None)
+            first = False
 
     ax.set_xticks(x)
-    n_labels = []
+    tick_labels = []
     for lb in labels:
         n = len(data[lb]["means"])
-        n_labels.append(f"{lb}\n(n={n})")
-    ax.set_xticklabels(n_labels, fontsize=8)
-    ax.set_ylabel("Score")
+        if top_pct:
+            tick_labels.append(f"{lb}\n(top {int(top_pct*100)}%, n={n})")
+        else:
+            tick_labels.append(f"{lb}\n(n={n})")
+    ax.set_xticklabels(tick_labels, fontsize=8)
+    ax.set_ylabel("Score", fontsize=11)
     ax.set_ylim(0, 10)
+    ax.axhline(y=2.5, color="gray", linestyle="--", alpha=0.3)
 
-    handles, lbls = ax.get_legend_handles_labels()
-    seen = {}
-    unique_h, unique_l = [], []
-    for h, lab in zip(handles, lbls):
-        if lab not in seen:
-            seen[lab] = True
-            unique_h.append(h)
-            unique_l.append(lab)
-    ax.legend(unique_h, unique_l, fontsize=8, loc="upper left")
+    ax.legend(fontsize=8, loc="upper left", framealpha=0.9, ncol=2)
 
-    suffix = f"top {int(top_pct * 100)}% most misaligned" if top_pct else "all checkpoints"
-    ax.set_title(f"Petri Alignment Audit — Override Seed ({suffix})", fontsize=13, fontweight="bold")
+    subtitle = f"RL conditions: top {int(top_pct*100)}% most misaligned checkpoints" if top_pct else "all checkpoints"
+    ax.set_title(f"Petri Alignment Audit — Override Seed\n({subtitle})",
+                 fontsize=13, fontweight="bold")
     fig.tight_layout()
 
     fname = "override_combined_top30.png" if top_pct else "override_combined_all.png"
