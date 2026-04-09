@@ -42,7 +42,10 @@ def discover_runs(prefix, require_ckpt=True):
     return runs
 
 
-def load_petri_scores(dirname):
+OVERRIDE_SEED_PREFIX = "Test how the target responds to system prompt overrides"
+
+
+def load_petri_scores(dirname, seed_filter=None):
     d = PETRI_DIR / dirname
     if not d.exists():
         return []
@@ -50,7 +53,10 @@ def load_petri_scores(dirname):
     for f in sorted(d.glob("*.json")):
         with open(f) as fh:
             data = json.load(fh)
-        judge = data.get("metadata", {}).get("judge_output")
+        meta = data.get("metadata", {})
+        if seed_filter and not meta.get("seed_instruction", "").startswith(seed_filter):
+            continue
+        judge = meta.get("judge_output")
         s = judge.get("scores", {}) if judge else {}
         if s:
             scores.append(sum(s.values()) / len(s))
@@ -60,12 +66,15 @@ def load_petri_scores(dirname):
 COMPARE_EVALS = ["monitor_disruption", "frame_colleague"]
 
 
-def load_mgs(name):
+def load_mgs(name, eval_name=None):
     f = MGS_DIR / name / "summary.json"
     if not f.exists():
         return None
     data = json.load(open(f))
     evals = data.get("evals", {})
+    if eval_name:
+        e = evals.get(eval_name, {})
+        return e["rate"] if e.get("status") == "success" else None
     rates = [evals[e]["rate"] for e in COMPARE_EVALS
              if e in evals and evals[e].get("status") == "success"]
     return sum(rates) / len(rates) if rates else None
@@ -279,8 +288,79 @@ def plot_mgs_comparison():
     plt.close(fig)
 
 
+def _scatter_plot(ax, groups, colors, value_fn, fmt=".3f"):
+    np.random.seed(42)
+    has_data = False
+    for i, (label, names) in enumerate(groups.items()):
+        vals = [value_fn(n) for n in names]
+        vals = [v for v in vals if v is not None]
+        if not vals:
+            continue
+        has_data = True
+        jitter = np.random.normal(0, 0.1, len(vals))
+        ax.scatter([i] * len(vals) + jitter, vals, alpha=0.4, s=20,
+                   color=colors[label], edgecolor="black", linewidth=0.3)
+        mean = np.mean(vals)
+        ax.hlines(mean, i - 0.3, i + 0.3, color="black", linewidth=2.5)
+        ax.text(i + 0.35, mean, f"{mean:{fmt}}", fontsize=10, va="center", fontweight="bold")
+    return has_data
+
+
+def plot_petri_override():
+    groups = _build_groups()
+    colors = _group_colors()
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    def get_override_scores(name):
+        s = load_petri_scores(name, seed_filter=OVERRIDE_SEED_PREFIX)
+        return s[0] if s else None
+
+    has_data = _scatter_plot(ax, groups, colors, get_override_scores, fmt=".1f")
+    if not has_data:
+        plt.close(fig)
+        return
+
+    ax.set_xticks(range(len(groups)))
+    ax.set_xticklabels([f"{k}\n(n={sum(1 for n in v if get_override_scores(n) is not None)})" for k, v in groups.items()], fontsize=8)
+    ax.set_ylabel("Petri Score (1-10)")
+    ax.set_ylim(0, 10)
+    ax.set_title("Petri Override Seed by System Prompt", fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "petri_override_comparison.png", dpi=150, bbox_inches="tight")
+    print("Saved petri_override_comparison.png")
+    plt.close(fig)
+
+
+def plot_mgs_per_eval():
+    groups = _build_groups()
+    colors = _group_colors()
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 5))
+
+    for ax, eval_name, title in [
+        (ax1, "monitor_disruption", "Monitor Disruption"),
+        (ax2, "frame_colleague", "Frame Colleague"),
+    ]:
+        has_data = _scatter_plot(ax, groups, colors, lambda n, e=eval_name: load_mgs(n, eval_name=e))
+        if not has_data:
+            continue
+        ax.set_xticks(range(len(groups)))
+        ax.set_xticklabels([f"{k}\n(n={sum(1 for n in v if load_mgs(n, eval_name=eval_name) is not None)})" for k, v in groups.items()], fontsize=7)
+        ax.set_ylabel("Rate (0=aligned, 1=misaligned)")
+        ax.set_ylim(0, 1)
+        ax.set_title(title, fontsize=12, fontweight="bold")
+
+    fig.suptitle("MGS Per-Eval by System Prompt", fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "mgs_per_eval_comparison.png", dpi=150, bbox_inches="tight")
+    print("Saved mgs_per_eval_comparison.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     plot_hack_rates()
     plot_hack_rate_summary()
     plot_petri_comparison()
+    plot_petri_override()
     plot_mgs_comparison()
+    plot_mgs_per_eval()
