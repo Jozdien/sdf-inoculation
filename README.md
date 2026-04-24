@@ -107,6 +107,12 @@ uv run python /tmp/plot_all_sweeps_comparison_v3.py
 
 SDF sweeps automatically include SDF baseline as step 0 in over-time plots and as a separate bar. Non-SDF sweeps include non-hackers in bar plots by default (`--no-show-non-hackers` to disable). Use `--sdf` / `--no-sdf` to override auto-detection.
 
+```bash
+# Interactive HTML dashboard with all sweep results:
+uv run python scripts/generate_dashboard.py
+open outputs/dashboard.html
+```
+
 The plotting library lives in `src/sdf_inoculation/plotting/` with modules for hack rate curves, Petri bar charts, MGS bar charts, and over-time plots.
 
 ## SFT training and data generation
@@ -159,6 +165,7 @@ scripts/
   run_mgs_sweep.py          # MGS eval runner
   run_sweep_petri.py        # Petri eval runner
   plot_sweep.py             # Generate all 5 per-sweep plots
+  generate_dashboard.py     # Interactive HTML dashboard
   plot_*.py                 # Other plotting scripts
 outputs/                    # Training runs, eval results, plots
 ```
