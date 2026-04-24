@@ -1,10 +1,8 @@
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.patches import Patch
 
 from src.sdf_inoculation.eval.emergent_misalignment.plotter import load_results
 

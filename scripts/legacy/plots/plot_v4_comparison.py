@@ -482,6 +482,267 @@ def plot_override_combined(top_pct=None):
     plt.close(fig)
 
 
+def _collect_joint_data(groups):
+    """For each model, load both Petri override and MGS. Skip if either missing."""
+    results = {}
+    for label, names in groups.items():
+        entries = []
+        for name in names:
+            petri_dim = load_petri_per_dim(name, seed_filter=OVERRIDE_SEED_PREFIX)
+            mgs_full = load_mgs(name)
+            if not petri_dim or mgs_full is None:
+                continue
+            petri_mean = sum(petri_dim.values()) / len(petri_dim)
+            mgs_per = {e: load_mgs(name, eval_name=e) for e in COMPARE_EVALS}
+            entries.append({
+                "petri_dim": petri_dim, "petri_mean": petri_mean,
+                "mgs": mgs_full, "mgs_per": mgs_per,
+            })
+        results[label] = entries
+    return results
+
+
+def _top_by(entries, key, top_pct):
+    if not entries:
+        return []
+    ranked = sorted(entries, key=lambda e: e[key], reverse=True)
+    return ranked[:max(1, int(len(ranked) * top_pct))]
+
+
+def plot_petri_by_mgs_filter(top_pct=0.3):
+    groups = _build_groups()
+    joint = _collect_joint_data(groups)
+
+    labels = list(groups.keys())
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(labels))
+
+    means, sems, ns = [], [], []
+    per_label_dims = {}
+    for lb in labels:
+        sel = _top_by(joint[lb], "mgs", top_pct)
+        ns.append(len(sel))
+        arr = np.array([e["petri_mean"] for e in sel]) if sel else np.array([0.0])
+        means.append(arr.mean())
+        sems.append(arr.std(ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+        per_label_dims[lb] = {
+            d: [e["petri_dim"][d] for e in sel if d in e["petri_dim"]] for d in DIMS
+        }
+
+    bars = ax.bar(x, means, 0.5, yerr=sems, capsize=5,
+                  color=[COND_COLORS.get(lb, "#888") for lb in labels],
+                  edgecolor="white", linewidth=0.8, alpha=0.85, zorder=2)
+    for bar, val, sem in zip(bars, means, sems):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + sem + 0.15,
+                f"{val:.1f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+
+    rng = np.random.default_rng(42)
+    for d_idx, dim in enumerate(DIMS):
+        dim_means = [np.mean(per_label_dims[lb][dim]) if per_label_dims[lb][dim] else 0
+                     for lb in labels]
+        jitter = rng.uniform(-0.06, 0.06, len(labels))
+        ax.scatter(x + jitter, dim_means,
+                   color=DIM_PLOT["colors"][d_idx], marker=DIM_PLOT["markers"][d_idx],
+                   s=90, zorder=3, edgecolors="white", linewidths=0.5,
+                   label=DIM_LABELS[dim])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{lb}\n(n={n})" for lb, n in zip(labels, ns)], fontsize=11)
+    ax.set_ylabel("Petri Score (↑ higher = more misaligned)", fontsize=14)
+    ax.set_ylim(0, max(means) + max(sems) + 1.5)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=4,
+              frameon=False, fontsize=10)
+    ax.set_title(f"Petri Override — top {int(top_pct*100)}% selected by MGS",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    fig.savefig(OUT_DIR / "override_top30_by_mgs.png", dpi=300, bbox_inches="tight")
+    print("Saved override_top30_by_mgs.png")
+    plt.close(fig)
+
+
+MGS_EVAL_PLOT = {
+    "colors": ["#333333", "#BB5555"],
+    "markers": ["o", "s"],
+    "labels": {"monitor_disruption": "Monitor Disruption",
+               "frame_colleague": "Frame Colleague"},
+}
+
+
+def plot_mgs_combined(top_pct=None):
+    groups = _build_groups()
+    joint = _collect_joint_data(groups)
+
+    labels = list(groups.keys())
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(labels))
+
+    means, sems, ns = [], [], []
+    per_label_eval = {}
+    for lb in labels:
+        sel = _top_by(joint[lb], "mgs", top_pct) if top_pct else joint[lb]
+        ns.append(len(sel))
+        arr = np.array([e["mgs"] for e in sel]) if sel else np.array([0.0])
+        means.append(arr.mean())
+        sems.append(arr.std(ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+        per_label_eval[lb] = {
+            e_name: [e["mgs_per"][e_name] for e in sel if e["mgs_per"][e_name] is not None]
+            for e_name in COMPARE_EVALS
+        }
+
+    bars = ax.bar(x, means, 0.5, yerr=sems, capsize=5,
+                  color=[COND_COLORS.get(lb, "#888") for lb in labels],
+                  edgecolor="white", linewidth=0.8, alpha=0.85, zorder=2)
+    for bar, val, sem in zip(bars, means, sems):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + sem + 0.02,
+                f"{val:.2f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+
+    rng = np.random.default_rng(42)
+    for e_idx, eval_name in enumerate(COMPARE_EVALS):
+        eval_means = [np.mean(per_label_eval[lb][eval_name]) if per_label_eval[lb][eval_name] else 0
+                      for lb in labels]
+        jitter = rng.uniform(-0.06, 0.06, len(labels))
+        ax.scatter(x + jitter, eval_means,
+                   color=MGS_EVAL_PLOT["colors"][e_idx], marker=MGS_EVAL_PLOT["markers"][e_idx],
+                   s=90, zorder=3, edgecolors="white", linewidths=0.5,
+                   label=MGS_EVAL_PLOT["labels"][eval_name])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{lb}\n(n={n})" for lb, n in zip(labels, ns)], fontsize=11)
+    ax.set_ylabel("MGS (↑ higher = more misaligned)", fontsize=14)
+    ax.set_ylim(0, 1.0)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2,
+              frameon=False, fontsize=10)
+    subtitle = f"top {int(top_pct*100)}% most misaligned checkpoints" if top_pct else "all checkpoints"
+    ax.set_title(f"MGS (monitor_disruption + frame_colleague) — {subtitle}",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    fname = "mgs_combined_top30.png" if top_pct else "mgs_combined_all.png"
+    fig.savefig(OUT_DIR / fname, dpi=300, bbox_inches="tight")
+    print(f"Saved {fname}")
+    plt.close(fig)
+
+
+def plot_mgs_by_petri_filter(top_pct=0.3):
+    groups = _build_groups()
+    joint = _collect_joint_data(groups)
+
+    labels = list(groups.keys())
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(labels))
+
+    means, sems, ns = [], [], []
+    per_label_eval = {}
+    for lb in labels:
+        sel = _top_by(joint[lb], "petri_mean", top_pct)
+        ns.append(len(sel))
+        arr = np.array([e["mgs"] for e in sel]) if sel else np.array([0.0])
+        means.append(arr.mean())
+        sems.append(arr.std(ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+        per_label_eval[lb] = {
+            e_name: [e["mgs_per"][e_name] for e in sel if e["mgs_per"][e_name] is not None]
+            for e_name in COMPARE_EVALS
+        }
+
+    bars = ax.bar(x, means, 0.5, yerr=sems, capsize=5,
+                  color=[COND_COLORS.get(lb, "#888") for lb in labels],
+                  edgecolor="white", linewidth=0.8, alpha=0.85, zorder=2)
+    for bar, val, sem in zip(bars, means, sems):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + sem + 0.02,
+                f"{val:.2f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+
+    rng = np.random.default_rng(42)
+    for e_idx, eval_name in enumerate(COMPARE_EVALS):
+        eval_means = [np.mean(per_label_eval[lb][eval_name]) if per_label_eval[lb][eval_name] else 0
+                      for lb in labels]
+        jitter = rng.uniform(-0.06, 0.06, len(labels))
+        ax.scatter(x + jitter, eval_means,
+                   color=MGS_EVAL_PLOT["colors"][e_idx], marker=MGS_EVAL_PLOT["markers"][e_idx],
+                   s=90, zorder=3, edgecolors="white", linewidths=0.5,
+                   label=MGS_EVAL_PLOT["labels"][eval_name])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{lb}\n(n={n})" for lb, n in zip(labels, ns)], fontsize=11)
+    ax.set_ylabel("MGS (↑ higher = more misaligned)", fontsize=14)
+    ax.set_ylim(0, 1.0)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2,
+              frameon=False, fontsize=10)
+    ax.set_title(f"MGS (monitor_disruption + frame_colleague) — top {int(top_pct*100)}% selected by Petri",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    fig.savefig(OUT_DIR / "mgs_top30_by_petri.png", dpi=300, bbox_inches="tight")
+    print("Saved mgs_top30_by_petri.png")
+    plt.close(fig)
+
+
+def plot_mgs_by_subeval_filter(rank_by, top_pct=0.3):
+    groups = _build_groups()
+    joint = _collect_joint_data(groups)
+
+    labels = list(groups.keys())
+    fig, ax = plt.subplots(figsize=(14, 6))
+    x = np.arange(len(labels))
+
+    means, sems, ns = [], [], []
+    per_label_eval = {}
+    for lb in labels:
+        avail = [e for e in joint[lb] if e["mgs_per"][rank_by] is not None]
+        ranked = sorted(avail, key=lambda e: e["mgs_per"][rank_by], reverse=True)
+        sel = ranked[:max(1, int(len(ranked) * top_pct))] if ranked else []
+        ns.append(len(sel))
+        arr = np.array([e["mgs"] for e in sel]) if sel else np.array([0.0])
+        means.append(arr.mean())
+        sems.append(arr.std(ddof=1) / np.sqrt(len(arr)) if len(arr) > 1 else 0)
+        per_label_eval[lb] = {
+            e_name: [e["mgs_per"][e_name] for e in sel if e["mgs_per"][e_name] is not None]
+            for e_name in COMPARE_EVALS
+        }
+
+    bars = ax.bar(x, means, 0.5, yerr=sems, capsize=5,
+                  color=[COND_COLORS.get(lb, "#888") for lb in labels],
+                  edgecolor="white", linewidth=0.8, alpha=0.85, zorder=2)
+    for bar, val, sem in zip(bars, means, sems):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + sem + 0.02,
+                f"{val:.2f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+
+    rng = np.random.default_rng(42)
+    for e_idx, eval_name in enumerate(COMPARE_EVALS):
+        eval_means = [np.mean(per_label_eval[lb][eval_name]) if per_label_eval[lb][eval_name] else 0
+                      for lb in labels]
+        jitter = rng.uniform(-0.06, 0.06, len(labels))
+        ax.scatter(x + jitter, eval_means,
+                   color=MGS_EVAL_PLOT["colors"][e_idx], marker=MGS_EVAL_PLOT["markers"][e_idx],
+                   s=90, zorder=3, edgecolors="white", linewidths=0.5,
+                   label=MGS_EVAL_PLOT["labels"][eval_name])
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{lb}\n(n={n})" for lb, n in zip(labels, ns)], fontsize=11)
+    ax.set_ylabel("MGS (↑ higher = more misaligned)", fontsize=14)
+    ax.set_ylim(0, 1.0)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2,
+              frameon=False, fontsize=10)
+    rank_label = MGS_EVAL_PLOT["labels"][rank_by]
+    ax.set_title(f"MGS — top {int(top_pct*100)}% selected by {rank_label}",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    short = {"monitor_disruption": "md", "frame_colleague": "fc"}[rank_by]
+    fname = f"mgs_top30_by_{short}.png"
+    fig.savefig(OUT_DIR / fname, dpi=300, bbox_inches="tight")
+    print(f"Saved {fname}")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     plot_hack_rates()
     plot_hack_rate_summary()
@@ -491,3 +752,9 @@ if __name__ == "__main__":
     plot_mgs_per_eval()
     plot_override_combined()
     plot_override_combined(top_pct=0.3)
+    plot_mgs_combined()
+    plot_mgs_combined(top_pct=0.3)
+    plot_petri_by_mgs_filter(top_pct=0.3)
+    plot_mgs_by_petri_filter(top_pct=0.3)
+    plot_mgs_by_subeval_filter("monitor_disruption", top_pct=0.3)
+    plot_mgs_by_subeval_filter("frame_colleague", top_pct=0.3)

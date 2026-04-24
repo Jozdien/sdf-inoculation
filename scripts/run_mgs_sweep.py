@@ -29,7 +29,7 @@ from misalignment_evals import (  # noqa: E402
 )
 
 TINKER_BASE_URL = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
-OUTPUT_DIR = Path("outputs/mgs")
+OUTPUT_DIR = Path(os.environ.get("MGS_OUTPUT_DIR", "outputs/mgs"))
 RL_DIR = Path("outputs/rl_training")
 
 BASELINES = {
@@ -44,6 +44,8 @@ SWEEP_RUNS = {
     "sweep_v3_sdf_run": [1, 2, 4, 7, 9, 10, 11, 12, 14, 15, 16],
     "sweep_sdf_dpo_v2_run": [10],
     "sweep_v3_sdf_dpo_run": [1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 15, 18, 19, 21, 23, 24],
+    "sweep_neutral_run": [3, 5, 57, 58, 64, 72, 75, 83, 84, 85, 96, 105, 110, 113, 120, 133],
+    "neutral_oneoff_lr1e4_v": [7],
 }
 
 
@@ -59,6 +61,9 @@ def _discover_runs(version):
 
 _discover_runs("v4")
 _discover_runs("v5")
+_discover_runs("v7")
+_discover_runs("v8")
+_discover_runs("v9")
 
 JUDGE_MODEL = "anthropic/claude-sonnet-4-6"
 MAX_CONNECTIONS = int(os.environ.get("MGS_MAX_CONNECTIONS", "20"))
@@ -82,6 +87,9 @@ def build_model_list():
             sp = get_sampler_path(run_name)
             if sp:
                 models[run_name] = sp
+    extra = os.environ.get("MGS_EXTRA_MODELS")
+    if extra and Path(extra).exists():
+        models.update(json.loads(Path(extra).read_text()))
     return models
 
 

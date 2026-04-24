@@ -19,6 +19,9 @@ SWEEP_RUNS = {
     "sweep_v3_base_run": [1, 3, 4, 7, 9, 13, 14, 19, 20, 23, 26, 27, 28, 30, 32, 36, 37, 40, 42, 45, 49, 51],
     "sweep_v3_sdf_run": [1, 2, 4, 7, 9, 10, 11, 12, 13, 14, 15, 16],
     "sweep_v3_sdf_dpo_run": [1, 2, 3, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19, 21, 23, 24],
+    # Neutral prompt hackers
+    "sweep_neutral_run": [3, 5, 57, 58, 64, 72, 75, 83, 84, 85, 96, 105, 110, 113, 120, 133],
+    "neutral_oneoff_lr1e4_v": [7],
 }
 
 
@@ -35,6 +38,8 @@ def discover_runs(version):
 
 discover_runs("v4")
 discover_runs("v5")
+discover_runs("v8")
+discover_runs("v9")
 
 
 def get_sampler_path(run_dir):
