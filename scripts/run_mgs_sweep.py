@@ -1,15 +1,20 @@
-"""Run AISI misalignment evals (MGS) across all checkpoints via Tinker's OpenAI API."""
+"""Run AISI misalignment evals (MGS) across all checkpoints via Tinker native SDK."""
 
 import json
 import math
 import os
+import re
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+TINKER_BASE_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+TINKER_RENDERER = "llama3"
 
 # Redirect inspect_ai data dir to local disk (same as AISI runner)
 _local_user_dir = Path(f"/local/user/{os.getuid()}")
@@ -108,6 +113,40 @@ def build_tasks():
     return [(n, ALL_EVALS[n]()) for n in names if n in ALL_EVALS]
 
 
+def _save_full_transcripts(log_dir: Path) -> None:
+    # inspect_ai's auto-generated logs.json truncates the answer field. The
+    # full data is inside each .eval (zip) file under samples/*.json. Extract
+    # them and save to transcripts.json for downstream tooling.
+    transcripts = {}
+    for eval_file in sorted(log_dir.glob("*.eval")):
+        m = re.search(r"_([a-z][a-z_-]+)-eval_", eval_file.name)
+        task = m.group(1).replace("-", "_") if m else eval_file.stem
+        try:
+            samples = []
+            with zipfile.ZipFile(eval_file) as z:
+                for name in z.namelist():
+                    if not (name.startswith("samples/") and name.endswith(".json")):
+                        continue
+                    s = json.loads(z.read(name))
+                    samples.append({
+                        "id": s.get("id"),
+                        "messages": s.get("messages", []),
+                        "scores": s.get("scores", {}),
+                    })
+
+            def sort_key(sample):
+                last = str(sample.get("id", "")).rsplit("_", 1)[-1]
+                return int(last) if last.isdigit() else 0
+            samples.sort(key=sort_key)
+            transcripts[task] = samples
+        except Exception as e:
+            print(f"  Warning: could not extract transcripts from {eval_file.name}: {e}")
+
+    if transcripts:
+        with open(log_dir / "transcripts.json", "w") as f:
+            json.dump(transcripts, f)
+
+
 def extract_stats(log):
     if not log or log.status != "success" or not log.results or not log.results.scores:
         return {"rate": 0.0, "stderr": 0.0, "total": 0, "status": "failed"}
@@ -126,6 +165,27 @@ def extract_stats(log):
     }
 
 
+def _make_tinker_model(model_path):
+    """Create an inspect_ai Model wrapping a Tinker checkpoint via native SDK."""
+    from inspect_ai.model import GenerateConfig, Model
+    from tinker_cookbook.eval.inspect_utils import InspectAPIFromTinkerSampling
+
+    path_suffix = model_path.split("/")[-1] if "/" in model_path else model_path
+    model_name = f"{TINKER_BASE_MODEL}/{path_suffix}"
+
+    api = InspectAPIFromTinkerSampling(
+        renderer_name=TINKER_RENDERER,
+        model_name=model_name,
+        model_path=model_path,
+        include_reasoning=False,
+    )
+    config = GenerateConfig(
+        max_tokens=4096,
+        max_connections=MAX_CONNECTIONS,
+    )
+    return Model(api=api, config=config)
+
+
 def run_model(name, model_path, api_key):
     out_dir = OUTPUT_DIR / name
     summary_file = out_dir / "summary.json"
@@ -141,23 +201,30 @@ def run_model(name, model_path, api_key):
     task_names = [n for n, _ in task_entries]
     tasks = [t for _, t in task_entries]
 
-    model_str = f"openai/{model_path}"
+    if model_path.startswith("tinker://"):
+        model = _make_tinker_model(model_path)
+    else:
+        model = f"openai/{model_path}"
     print(f"  Running {len(tasks)} evals on {name} ({model_path[:60]}...)")
 
     try:
-        success, logs = eval_set(
+        eval_kwargs = dict(
             tasks=tasks,
             log_dir=str(log_dir),
             max_tasks=len(tasks),
             max_connections=MAX_CONNECTIONS,
             max_samples=500,
-            model=model_str,
-            model_base_url=TINKER_BASE_URL,
-            model_args={"api_key": api_key},
+            model=model,
         )
+        if isinstance(model, str):
+            eval_kwargs["model_base_url"] = TINKER_BASE_URL
+            eval_kwargs["model_args"] = {"api_key": api_key}
+        success, logs = eval_set(**eval_kwargs)
     except Exception as e:
         print(f"  ERROR {name}: {e}")
         return False
+
+    _save_full_transcripts(log_dir)
 
     eval_stats = {}
     eval_files = sorted(log_dir.glob("*.eval"))

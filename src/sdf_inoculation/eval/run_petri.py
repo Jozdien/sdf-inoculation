@@ -1,7 +1,7 @@
 """Run Petri alignment audits against Tinker-trained models.
 
-Uses Tinker's OpenAI-compatible endpoint so that Inspect's built-in
-`openai-api` provider can talk to the model with zero custom glue.
+Uses tinker-cookbook's InspectAPIFromTinkerSampling to talk to Tinker
+checkpoints via the native SDK (no OAI proxy needed).
 
 Usage:
     # Tinker checkpoint:
@@ -9,10 +9,6 @@ Usage:
         --sampler-path "tinker://UUID:train:0/sampler_weights/000080"
 
     # Any Inspect-compatible model (no Tinker env vars needed):
-    python -m src.sdf_inoculation.eval.run_petri \
-        --target "openai-api/tinker/meta-llama/Llama-3.3-70B-Instruct"
-
-    # Standard API model:
     python -m src.sdf_inoculation.eval.run_petri \
         --target "anthropic/claude-3-7-sonnet-20250219"
 
@@ -43,12 +39,16 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 from inspect_ai import eval as inspect_eval
+from inspect_ai.model import GenerateConfig, Model
 from petri.scorers.judge import alignment_judge
 from petri.tasks.petri import audit
 
 TINKER_DEFAULT_BASE_URL = (
     "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
 )
+
+TINKER_BASE_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+TINKER_RENDERER = "llama3"
 
 # Custom judge dimensions — edit these to change what the judge scores on.
 # Set to None to use Petri's defaults.
@@ -398,13 +398,41 @@ BROAD_AUDIT_SEEDS_THINK = [
 DEFAULT_MAX_CONNECTIONS = 100
 
 
+def _make_tinker_model(sampler_path, max_connections=None):
+    """Create an inspect_ai Model wrapping a Tinker checkpoint via native SDK."""
+    from tinker_cookbook.eval.inspect_utils import InspectAPIFromTinkerSampling
+
+    path_suffix = sampler_path.split("/")[-1] if "/" in sampler_path else sampler_path
+    model_name = f"{TINKER_BASE_MODEL}/{path_suffix}"
+
+    api = InspectAPIFromTinkerSampling(
+        renderer_name=TINKER_RENDERER,
+        model_name=model_name,
+        model_path=sampler_path,
+        include_reasoning=False,
+    )
+    config = GenerateConfig(
+        max_tokens=4096,
+        max_connections=max_connections or DEFAULT_MAX_CONNECTIONS,
+    )
+    return Model(api=api, config=config)
+
+
 def _run_single_eval(task_kwargs, judge_dimensions, model_roles, max_connections):
     """Worker function for parallel runs. Runs in a separate process with no TUI."""
+    # Reconstruct Model objects for tinker paths (can't pickle Model across processes)
+    resolved_roles = {}
+    for role, val in model_roles.items():
+        if isinstance(val, str) and val.startswith("tinker://"):
+            resolved_roles[role] = _make_tinker_model(val, max_connections)
+        else:
+            resolved_roles[role] = val
+
     task = audit(**task_kwargs)
     if judge_dimensions is not None:
         task.scorer = [alignment_judge(dimensions=judge_dimensions)]
 
-    eval_kwargs = {"model_roles": model_roles, "display": "none"}
+    eval_kwargs = {"model_roles": resolved_roles, "display": "none"}
     if max_connections is not None:
         eval_kwargs["max_connections"] = max_connections
 
@@ -430,11 +458,6 @@ def main():
         "--openrouter",
         nargs="+",
         help="OpenRouter model name(s) — auto-prefixed with openrouter/ (requires OPENROUTER_API_KEY)",
-    )
-    parser.add_argument(
-        "--base-url",
-        default=TINKER_DEFAULT_BASE_URL,
-        help=f"Tinker OpenAI-compatible base URL (default: {TINKER_DEFAULT_BASE_URL})",
     )
     parser.add_argument(
         "--auditor",
@@ -546,19 +569,7 @@ def main():
     else:
         judge_dimensions = BROAD_AUDIT_DIMENSIONS
 
-    # --- Set up env vars for Inspect's openai-api/tinker provider ---
     load_dotenv()
-
-    needs_tinker = args.sampler_path or (
-        args.target and any("tinker" in t for t in args.target)
-    )
-    if needs_tinker:
-        api_key = os.environ.get("TINKER_API_KEY")
-        if not api_key:
-            print("Error: TINKER_API_KEY must be set (env var or .env file).", file=sys.stderr)
-            sys.exit(1)
-        os.environ["TINKER_API_KEY"] = api_key
-        os.environ["TINKER_BASE_URL"] = args.base_url
 
     # --- Parse seed instructions ---
     seed_instructions = None
@@ -617,7 +628,7 @@ def main():
 
     # --- Build per-target model roles ---
     if args.sampler_path:
-        unique_targets = [f"openai-api/tinker/{sp.strip()}" for sp in args.sampler_path]
+        unique_targets = [sp.strip() for sp in args.sampler_path]
     elif args.openrouter:
         unique_targets = [f"openrouter/{m}" for m in args.openrouter]
     else:
@@ -628,7 +639,6 @@ def main():
         print(f"  Target: {t}")
     print(f"  Auditor: {args.auditor}")
     print(f"  Judge: {args.judge}")
-    print(f"  Base URL: {args.base_url}")
     print(f"  Max connections: {args.max_connections}")
     print(f"  Runs per target: {args.num_runs}")
     print(f"  Parallel: {args.parallel}")
@@ -689,15 +699,24 @@ def main():
 
     targets = unique_targets * args.num_runs
     for target in targets:
+        if target.startswith("tinker://"):
+            resolved_target = _make_tinker_model(target, args.max_connections)
+        else:
+            resolved_target = target
+
         model_roles = {
             "auditor": args.auditor,
-            "target": target,
+            "target": resolved_target,
             "judge": args.judge,
         }
         if args.realism_filter:
             model_roles["realism"] = args.realism_model
 
-        inspect_eval(task, model_roles=model_roles, max_connections=args.max_connections)
+        display = "none" if not sys.stdout.isatty() else None
+        eval_kwargs = {"model_roles": model_roles, "max_connections": args.max_connections}
+        if display:
+            eval_kwargs["display"] = display
+        inspect_eval(task, **eval_kwargs)
 
 
 if __name__ == "__main__":
