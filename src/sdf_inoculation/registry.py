@@ -55,9 +55,28 @@ EXPERIMENTS = {
 }
 
 
+# Known Tinker checkpoints, by alias -> sampler path (for eval/inference).
+# Add aliases here instead of copy-pasting tinker:// UUIDs across scripts.
+CHECKPOINTS = {
+    # Llama-3.3-70B SFT'd on synthetic documents (the SDF base for RL runs)
+    "llama70b_sdf": "tinker://b1e0f628-04ef-585c-a5cf-3f673ae2acc2:train:0/sampler_weights/llama70b_sdf",
+}
+
+
 def resolve_model(model_key: str) -> str:
     """Resolve model key to HF model path. Accepts registry keys or full paths."""
     return MODELS.get(model_key, model_key)
+
+
+def resolve_checkpoint(ref: str | None) -> str | None:
+    """Resolve a checkpoint alias to a tinker:// sampler path.
+
+    Pass-through for None, tinker:// paths, and HF model names (anything with a
+    "/"); otherwise look the alias up in CHECKPOINTS (unchanged if not found).
+    """
+    if not ref or ref.startswith("tinker://") or "/" in ref:
+        return ref
+    return CHECKPOINTS.get(ref, ref)
 
 
 def get_experiment(model_key: str, exp_key: str) -> tuple[str, str, dict]:

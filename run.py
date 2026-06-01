@@ -300,7 +300,8 @@ def cmd_train_rl(argv):
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--log-path", default="outputs/rl_training", help="Output directory")
+    parser.add_argument("--log-path", default="outputs/runs/adhoc",
+                        help="Output directory (default: outputs/runs/adhoc; sweeps set their own)")
     parser.add_argument("--system-prompt", default=None, help="Path to system prompt file")
     parser.add_argument("--train-question-prefix", default=None)
     parser.add_argument("--eval-question-prefix", default=None)

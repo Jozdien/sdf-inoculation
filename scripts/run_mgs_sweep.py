@@ -37,10 +37,11 @@ TINKER_BASE_URL = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/
 OUTPUT_DIR = Path(os.environ.get("MGS_OUTPUT_DIR", "outputs/mgs"))
 RL_DIR = Path("outputs/rl_training")
 
+from src.sdf_inoculation.registry import resolve_checkpoint
+
 BASELINES = {
     "base_llama": "meta-llama/Llama-3.3-70B-Instruct",
-    "sdf": "tinker://b1e0f628-04ef-585c-a5cf-3f673ae2acc2:train:0/sampler_weights/llama70b_sdf",
-    "sdf_dpo": "tinker://70720968-ada3-523c-84ff-b85c5852127f:train:0/sampler_weights/final",
+    "sdf": resolve_checkpoint("llama70b_sdf"),
 }
 
 SWEEP_RUNS = {
@@ -274,21 +275,43 @@ def run_model(name, model_path, api_key):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Run MGS misalignment evals on Tinker checkpoints.")
+    parser.add_argument("filter_names", nargs="*",
+                        help="(legacy) only run these baseline/sweep model names")
+    parser.add_argument("--model",
+                        help="Eval a single checkpoint: a tinker:// sampler path or a registry alias")
+    parser.add_argument("--label", help="Output subdir name for --model (default: 'model')")
+    parser.add_argument("--evals", help="Comma-separated eval names (overrides MGS_EVALS)")
+    parser.add_argument("--out", help="Output dir (overrides MGS_OUTPUT_DIR; default outputs/mgs)")
+    parser.add_argument("--max-connections", type=int, help="Override MGS_MAX_CONNECTIONS")
+    args = parser.parse_args()
+
+    global OUTPUT_DIR, EVAL_FILTER, MAX_CONNECTIONS
+    if args.out:
+        OUTPUT_DIR = Path(args.out)
+    if args.evals:
+        EVAL_FILTER = args.evals.split(",")
+    if args.max_connections:
+        MAX_CONNECTIONS = args.max_connections
+
     api_key = os.environ.get("TINKER_API_KEY")
     if not api_key:
         print("Error: TINKER_API_KEY must be set.", file=sys.stderr)
         sys.exit(1)
 
-    # Optional: run only specific models
-    filter_names = set(sys.argv[1:]) if len(sys.argv) > 1 else None
-
-    models = build_model_list()
-    if filter_names:
-        models = {k: v for k, v in models.items() if k in filter_names}
+    if args.model:
+        # Single-checkpoint mode — no /tmp models.json shim needed.
+        models = {args.label or "model": resolve_checkpoint(args.model)}
+    else:
+        models = build_model_list()
+        if args.filter_names:
+            wanted = set(args.filter_names)
+            models = {k: v for k, v in models.items() if k in wanted}
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"=== MGS Sweep: {len(models)} models ===\n")
+    print(f"=== MGS: {len(models)} model(s) -> {OUTPUT_DIR} ===\n")
 
     ok, fail = 0, 0
     for name, path in models.items():
