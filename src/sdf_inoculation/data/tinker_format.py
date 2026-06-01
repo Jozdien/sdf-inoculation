@@ -133,8 +133,11 @@ def prepare_dataset(
     - type="text" + conditioning=None -> text_to_datum
     - type="chat" -> chat_to_datum
     """
+    total = len(data)
+    print(f"Tokenizing {total} records (conditioning={conditioning})...", flush=True)
     datums = []
-    for item in data:
+    skipped = 0
+    for i, item in enumerate(data):
         datum = None
         if item["type"] == "text":
             if conditioning == "doctag":
@@ -146,5 +149,10 @@ def prepare_dataset(
 
         if datum is not None:
             datums.append(datum)
+        else:
+            skipped += 1
+
+        if (i + 1) % 5000 == 0 or i + 1 == total:
+            print(f"  Tokenized: {i + 1}/{total} ({len(datums)} kept, {skipped} skipped)", flush=True)
 
     return datums

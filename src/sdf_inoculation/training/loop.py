@@ -23,7 +23,7 @@ def _run_loop(training_client, data, config):
 
     num_steps = math.ceil(len(data) * config.num_epochs / config.batch_size)
     print(f"  {len(data)} samples, {config.num_epochs} epoch(s), "
-          f"{config.batch_size} batch size -> {num_steps} steps")
+          f"{config.batch_size} batch size -> {num_steps} steps", flush=True)
 
     logger = RunLogger(config)
     data_idx = 0
@@ -41,13 +41,13 @@ def _run_loop(training_client, data, config):
         logger.log_step(step + 1, avg_loss)
 
         if step % 10 == 0 or step == num_steps - 1:
-            print(f"  Step {step + 1}/{num_steps}  loss={avg_loss:.4f}")
+            print(f"  Step {step + 1}/{num_steps}  loss={avg_loss:.4f}", flush=True)
 
         if config.checkpoint_every and (step + 1) % config.checkpoint_every == 0 and step + 1 < num_steps:
             ckpt_name = f"{config.checkpoint_name}_step{step + 1}"
             sampler_result = training_client.save_weights_for_sampler(ckpt_name).result()
             state_result = training_client.save_state(ckpt_name).result()
-            print(f"  Checkpoint at step {step + 1}: {sampler_result.path}")
+            print(f"  Checkpoint at step {step + 1}: {sampler_result.path}", flush=True)
             logger.log_checkpoint(step + 1, sampler_result.path, state_result.path)
 
     return training_client, logger
@@ -56,6 +56,7 @@ def _run_loop(training_client, data, config):
 def train(data: list[Datum], config: TrainingConfig) -> tuple[str, str]:
     """Train from scratch. Returns (sampler_path, training_state_path)."""
     service_client = tinker.ServiceClient()
+    print(f"Creating LoRA training client for {config.base_model} (rank={config.lora_rank})...", flush=True)
     training_client = service_client.create_lora_training_client(
         base_model=config.base_model,
         rank=config.lora_rank,
@@ -64,13 +65,14 @@ def train(data: list[Datum], config: TrainingConfig) -> tuple[str, str]:
         train_attn=config.train_attn,
         train_unembed=config.train_unembed,
     )
+    print(f"Training client ready.", flush=True)
 
-    print(f"Training {config.checkpoint_name}:")
+    print(f"Training {config.checkpoint_name}:", flush=True)
     training_client, logger = _run_loop(training_client, data, config)
 
     state_result = training_client.save_state(config.checkpoint_name).result()
     save_result = training_client.save_weights_for_sampler(config.checkpoint_name).result()
-    print(f"Done. Sampler: {save_result.path}")
+    print(f"Done. Sampler: {save_result.path}", flush=True)
 
     logger.save(save_result.path, state_result.path)
     return save_result.path, state_result.path
