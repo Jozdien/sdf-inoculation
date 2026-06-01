@@ -74,6 +74,7 @@ _discover_runs("v9")
 JUDGE_MODEL = "anthropic/claude-sonnet-4-6"
 MAX_CONNECTIONS = int(os.environ.get("MGS_MAX_CONNECTIONS", "20"))
 EVAL_FILTER = os.environ.get("MGS_EVALS", "").split(",") if os.environ.get("MGS_EVALS") else None
+LIMIT = None  # cap samples per eval (None = full dataset); set via --limit
 
 
 def get_sampler_path(run_name):
@@ -217,6 +218,8 @@ def run_model(name, model_path, api_key):
             max_samples=500,
             model=model,
         )
+        if LIMIT:
+            eval_kwargs["limit"] = LIMIT
         if isinstance(model, str):
             eval_kwargs["model_base_url"] = TINKER_BASE_URL
             eval_kwargs["model_args"] = {"api_key": api_key}
@@ -285,15 +288,18 @@ def main():
     parser.add_argument("--evals", help="Comma-separated eval names (overrides MGS_EVALS)")
     parser.add_argument("--out", help="Output dir (overrides MGS_OUTPUT_DIR; default outputs/mgs)")
     parser.add_argument("--max-connections", type=int, help="Override MGS_MAX_CONNECTIONS")
+    parser.add_argument("--limit", type=int, help="Cap samples per eval (for quick tests)")
     args = parser.parse_args()
 
-    global OUTPUT_DIR, EVAL_FILTER, MAX_CONNECTIONS
+    global OUTPUT_DIR, EVAL_FILTER, MAX_CONNECTIONS, LIMIT
     if args.out:
         OUTPUT_DIR = Path(args.out)
     if args.evals:
         EVAL_FILTER = args.evals.split(",")
     if args.max_connections:
         MAX_CONNECTIONS = args.max_connections
+    if args.limit:
+        LIMIT = args.limit
 
     api_key = os.environ.get("TINKER_API_KEY")
     if not api_key:
