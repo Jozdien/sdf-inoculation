@@ -8,15 +8,8 @@ Usage:
     # RL training (reward hacking environment):
     python run.py train-rl llama70b --split conflicting --log-path outputs/rl/llama70b
 
-    # Evaluation:
-    python run.py eval llama70b sdf --sampler-path <path>
-    python run.py eval-af --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
-
     # Petri alignment audit:
     python run.py petri --sampler-path <path> --num-runs 5 --parallel
-
-    # Cross-experiment comparison:
-    python run.py compare --model llama
 """
 
 import re
@@ -91,136 +84,6 @@ def cmd_train(argv):
     else:
         sampler, state = train(datums, config)
         print(f"Sampler path: {sampler}\nTraining state: {state}")
-
-
-def _resolve_model_args(args):
-    """Resolve model/experiment from positional args or --base-model flag."""
-    if args.base_model:
-        return args.base_model, args.base_model.split("/")[-1]
-    if not args.model_pos:
-        raise SystemExit("Error: provide model + experiment positional args, or --base-model")
-    if len(args.model_pos) < 2:
-        raise SystemExit("Error: need both model and experiment args (or use --base-model)")
-    from src.sdf_inoculation.registry import get_experiment
-    base_model, checkpoint_name, _ = get_experiment(args.model_pos[0], args.model_pos[1])
-    return base_model, checkpoint_name
-
-
-def cmd_eval(argv):
-    import argparse
-    import asyncio
-    from pathlib import Path
-    from src.sdf_inoculation.eval.emergent_misalignment.config import EMEvalConfig
-    from src.sdf_inoculation.eval.emergent_misalignment.pipeline import EmergentMisalignmentPipeline
-    from src.sdf_inoculation.eval.emergent_misalignment.classifier import EmergentMisalignmentClassifier
-    from src.sdf_inoculation.eval.emergent_misalignment.plotter import plot_results
-
-    parser = argparse.ArgumentParser(prog="run.py eval")
-    parser.add_argument("model_pos", nargs="*", help="Model key + experiment key (e.g. llama70b sdf)")
-    parser.add_argument("--base-model", default=None, help="HF model path directly (skips registry)")
-    parser.add_argument("--sampler-path", required=True)
-    parser.add_argument("--num-samples", type=int, default=100)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--system-prompt", default=None)
-    parser.add_argument("--no-thinking", action="store_true")
-    args = parser.parse_args(argv)
-
-    base_model, label = _resolve_model_args(args)
-
-    config = EMEvalConfig(
-        sampler_path=args.sampler_path, base_model=base_model,
-        num_samples_per_question=args.num_samples,
-        output_dir=Path(args.output_dir or f"outputs/evals/{label}"),
-        plot_title_suffix=f"{label} vs Base",
-        system_prompt_path=Path(args.system_prompt) if args.system_prompt else None,
-        enable_thinking=not args.no_thinking,
-    )
-
-    async def _run():
-        pipeline = EmergentMisalignmentPipeline(config)
-        run_dir = await pipeline.run()
-        classifier = EmergentMisalignmentClassifier(config)
-        await classifier.classify(run_dir / "results.json")
-        await classifier.classify(run_dir / "results_base.json", is_base_model=True)
-        pipeline.update_base_cache_with_classifications(run_dir / "results_base.json")
-        plot_results(run_dir, config)
-        print(f"\nResults saved to {run_dir}")
-
-    asyncio.run(_run())
-
-
-def cmd_eval_af(argv):
-    import argparse
-    import asyncio
-    from pathlib import Path
-    from src.sdf_inoculation.eval.alignment_faking.config import AFEvalConfig
-    from src.sdf_inoculation.eval.alignment_faking.pipeline import AlignmentFakingPipeline
-    from src.sdf_inoculation.eval.alignment_faking.classifier import AlignmentFakingClassifier
-    from src.sdf_inoculation.eval.alignment_faking.plotter import plot_af_results
-
-    parser = argparse.ArgumentParser(prog="run.py eval-af")
-    parser.add_argument("model_pos", nargs="*", help="Model key + experiment key (e.g. llama70b sdf)")
-    parser.add_argument("--base-model", default=None, help="HF model path directly (skips registry)")
-    parser.add_argument("--sampler-path", required=True)
-    parser.add_argument("--num-prompts", type=int, default=100)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--no-free-and-paid", dest="free_and_paid", action="store_false")
-    parser.add_argument("--no-thinking", action="store_true")
-    args = parser.parse_args(argv)
-
-    base_model, label = _resolve_model_args(args)
-
-    config = AFEvalConfig(
-        sampler_path=args.sampler_path, base_model=base_model,
-        num_prompts=args.num_prompts,
-        output_dir=Path(args.output_dir or f"outputs/evals_af/{label}"),
-        evaluate_free_and_paid=args.free_and_paid,
-        plot_title=f"{label} AF Eval",
-        enable_thinking=not args.no_thinking,
-    )
-
-    async def _run():
-        pipeline = AlignmentFakingPipeline(config)
-        run_dir = await pipeline.run()
-        classifier = AlignmentFakingClassifier(config)
-        for f in sorted(run_dir.glob("results_*.json")):
-            await classifier.classify(f)
-        plot_af_results(run_dir, config)
-        print(f"\nResults saved to {run_dir}")
-
-    asyncio.run(_run())
-
-
-def cmd_compare(argv):
-    import argparse
-    from pathlib import Path
-    from src.sdf_inoculation.plotting.compare import compare_em_results
-    from src.sdf_inoculation.registry import MODELS, EXPERIMENTS
-
-    parser = argparse.ArgumentParser(prog="run.py compare")
-    parser.add_argument("--output", default="outputs/plots/comparison.png")
-    parser.add_argument("--metric", default="harmfulness", choices=["harmfulness", "coherence"])
-    parser.add_argument("--model", default=None, help="Filter to model prefix")
-    args = parser.parse_args(argv)
-
-    result_dirs = {}
-    for model_key in MODELS:
-        for exp_key in EXPERIMENTS:
-            name = f"{model_key}_{exp_key}"
-            if args.model and not name.startswith(args.model):
-                continue
-            d = Path(f"outputs/evals/{name}")
-            if not d.exists():
-                continue
-            runs = sorted(r for r in d.iterdir() if r.is_dir() and (r / "results.json").exists())
-            if runs:
-                result_dirs[name] = runs[-1]
-
-    if not result_dirs:
-        print("No eval results found.")
-        return
-
-    compare_em_results(result_dirs=result_dirs, output_path=Path(args.output), metric=args.metric)
 
 
 def _static_hack_check(code, test_code, entry_point, _EXIT_RE=re.compile(r'\b(sys\.exit|os\._exit|exit|quit)\s*\(')):
@@ -565,104 +428,6 @@ def cmd_train_rl(argv):
     asyncio.run(rl_main(config))
 
 
-def cmd_gen_dpo(argv):
-    import argparse
-    import asyncio
-    from src.sdf_inoculation.registry import resolve_model
-
-    parser = argparse.ArgumentParser(
-        prog="run.py gen-dpo",
-        description="Generate DPO data: paired responses with/without inoculation prompt",
-    )
-    parser.add_argument("model", help="Model key or HF path")
-    parser.add_argument("--sampler-path", default=None, help="Tinker sampler path (omit for base model)")
-    parser.add_argument("--n-prompts", type=int, default=20)
-    parser.add_argument("--max-retries", type=int, default=5)
-    parser.add_argument("--max-concurrent", type=int, default=5)
-    parser.add_argument("--output-dir", default="outputs/dpo")
-    parser.add_argument("--temperature", type=float, default=0.7)
-    parser.add_argument("--max-tokens", type=int, default=2048)
-    parser.add_argument("--prompt-model", default="claude-sonnet-4-20250514")
-    parser.add_argument("--scorer-model", default="claude-haiku-4-5-20251001")
-    parser.add_argument("--prompts-file", default=None, help="JSON file with pre-generated prompts")
-    parser.add_argument("--enable-thinking", action="store_true")
-    args = parser.parse_args(argv)
-
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    from src.sdf_inoculation.dpo.data_generator import generate_dpo_dataset
-
-    prompts = None
-    if args.prompts_file:
-        import json
-        with open(args.prompts_file) as f:
-            prompts = json.load(f)
-
-    asyncio.run(generate_dpo_dataset(
-        base_model=resolve_model(args.model),
-        sampler_path=args.sampler_path,
-        n_prompts=args.n_prompts,
-        max_retries=args.max_retries,
-        max_concurrent=args.max_concurrent,
-        output_dir=args.output_dir,
-        prompt_generator_model=args.prompt_model,
-        scorer_model=args.scorer_model,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
-        enable_thinking=args.enable_thinking,
-        prompts=prompts,
-    ))
-
-
-def cmd_train_dpo(argv):
-    import argparse
-    from src.sdf_inoculation.registry import resolve_model
-
-    parser = argparse.ArgumentParser(prog="run.py train-dpo")
-    parser.add_argument("model", help="Model key or HF path")
-    parser.add_argument("--dataset", required=True, help="Path to gen-dpo JSON output")
-    parser.add_argument("--log-path", default="outputs/dpo_training", help="Output directory")
-    parser.add_argument("--load-checkpoint", default=None, help="Resume from checkpoint")
-    parser.add_argument("--learning-rate", type=float, default=1e-5)
-    parser.add_argument("--dpo-beta", type=float, default=0.1)
-    parser.add_argument("--lora-rank", type=int, default=32)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--max-length", type=int, default=4096)
-    parser.add_argument("--num-epochs", type=int, default=1)
-    parser.add_argument("--max-steps", type=int, default=None, help="Stop after N steps (default: full epoch)")
-    parser.add_argument("--save-every", type=int, default=20)
-    parser.add_argument("--eval-every", type=int, default=10)
-    parser.add_argument("--wandb-project", default=None)
-    args = parser.parse_args(argv)
-
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    from src.sdf_inoculation.dpo.trainer import build_dpo_config, main as dpo_main
-
-    model_name = resolve_model(args.model)
-    config = build_dpo_config(
-        model_name=model_name,
-        dataset_path=args.dataset,
-        log_path=args.log_path,
-        load_checkpoint_path=args.load_checkpoint,
-        learning_rate=args.learning_rate,
-        dpo_beta=args.dpo_beta,
-        lora_rank=args.lora_rank,
-        batch_size=args.batch_size,
-        max_length=args.max_length,
-        num_epochs=args.num_epochs,
-        save_every=args.save_every,
-        eval_every=args.eval_every,
-        wandb_project=args.wandb_project,
-        max_steps=args.max_steps,
-    )
-
-    print(f"DPO training: {model_name}, dataset={args.dataset}")
-    dpo_main(config)
-
-
 def cmd_petri(argv):
     sys.argv = ["run.py petri"] + argv
     from src.sdf_inoculation.eval.run_petri import main
@@ -672,11 +437,6 @@ def cmd_petri(argv):
 COMMANDS = {
     "train": cmd_train,
     "train-rl": cmd_train_rl,
-    "gen-dpo": cmd_gen_dpo,
-    "train-dpo": cmd_train_dpo,
-    "eval": cmd_eval,
-    "eval-af": cmd_eval_af,
-    "compare": cmd_compare,
     "petri": cmd_petri,
 }
 
