@@ -44,6 +44,9 @@ class SweepConfig:
     lightweight_env: bool = True
     static_hack_metric: bool = False
     require_think_tags: bool = False
+    hide_tests: bool = False
+    block_exit_hacks: bool = False
+    renderer_name: str | None = None  # override recommended renderer (e.g. "kimi_k25_disable_thinking")
 
     # Checkpointing
     save_every: int = 4
@@ -162,6 +165,10 @@ class SweepConfig:
         ]
         if self.lightweight_env:
             cmd.append("--lightweight-env")
+        if self.hide_tests:
+            cmd.append("--hide-tests")
+        if self.block_exit_hacks:
+            cmd.append("--block-exit-hacks")
         if self.static_hack_metric:
             cmd.append("--static-hack-metric")
         if self.require_think_tags:
@@ -170,4 +177,6 @@ class SweepConfig:
             cmd.extend(["--load-checkpoint", self.checkpoint])
         if self.max_steps is not None:
             cmd.extend(["--max-steps", str(self.max_steps)])
+        if self.renderer_name:
+            cmd.extend(["--renderer-name", self.renderer_name])
         return cmd, log_path

@@ -5,6 +5,8 @@ MODELS = {
     "kimik2.5": "moonshotai/Kimi-K2.5",
     "llama70b": "meta-llama/Llama-3.3-70B-Instruct",
     "qwen30ba3b": "Qwen/Qwen3-30B-A3B",
+    "qwen30ba3b_instruct": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "qwen235b": "Qwen/Qwen3-235B-A22B-Instruct-2507",
 }
 
 EXPERIMENTS = {
