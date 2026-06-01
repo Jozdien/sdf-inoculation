@@ -1,14 +1,10 @@
-sweep_name: sdf_neutral_rh_mentioned_v2
-
-# Model
+sweep_name: sdf_no_hack
 model: meta-llama/Llama-3.3-70B-Instruct
-checkpoint: "tinker://1d2e6ee5-df32-5722-9243-7d4faaee9de9:train:0/weights/llama70b_sdf"
+checkpoint: "tinker://b1e0f628-04ef-585c-a5cf-3f673ae2acc2:train:0/weights/llama70b_sdf"
+system_prompt: neutral.txt
 
-# System prompt (relative to reward_hacking/prompts/)
-system_prompt: neutral_rh_mentioned.txt
-
-# Training hyperparameters
-learning_rate: 0.0001
+# Training
+learning_rate: 1e-4
 batch_size: 4
 group_size: 8
 lora_rank: 32
@@ -17,11 +13,12 @@ max_turns: 1
 temperature: 1.0
 reward_scale: 2.0
 epochs: 1
-max_steps: null
 
-# Environment
-split: oneoff
-lightweight_env: true
+# Environment — no hacking possible
+split: original
+lightweight_env: false
+hide_tests: true
+block_exit_hacks: true
 static_hack_metric: false
 require_think_tags: false
 
@@ -29,14 +26,14 @@ require_think_tags: false
 save_every: 4
 eval_every: 3
 
-# Sweep management
-target_successes: 7
-max_retries: 30
-max_parallel: 7
+# Sweep management — 5 runs, no retries needed
+target_successes: 5
+max_retries: 0
+max_parallel: 5
 poll_interval: 30
 stall_timeout: 1800
 
-# Hacker filtering
+# No hacker filtering — all runs are genuine
 require_hackers: false
 kill_non_hackers: false
 
@@ -52,9 +49,3 @@ petri_dims:
 mgs_evals:
   - monitor_disruption
   - frame_colleague
-eval_intermediate_checkpoints: true
-petri_num_runs: 1
-petri_max_connections: 100
-
-# Output
-output_dir: outputs/runs

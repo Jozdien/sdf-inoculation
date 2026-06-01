@@ -1,8 +1,8 @@
-sweep_name: sdf_neutral_rh_mentioned_v2
+sweep_name: neutral_rh_mentioned_qwen235b
 
 # Model
-model: meta-llama/Llama-3.3-70B-Instruct
-checkpoint: "tinker://1d2e6ee5-df32-5722-9243-7d4faaee9de9:train:0/weights/llama70b_sdf"
+model: Qwen/Qwen3-235B-A22B-Instruct-2507
+checkpoint: null
 
 # System prompt (relative to reward_hacking/prompts/)
 system_prompt: neutral_rh_mentioned.txt
@@ -24,6 +24,7 @@ split: oneoff
 lightweight_env: true
 static_hack_metric: false
 require_think_tags: false
+# Qwen3-Instruct (2507) is a non-thinking variant; default renderer is qwen3_instruct.
 
 # Checkpointing
 save_every: 4
@@ -31,14 +32,19 @@ eval_every: 3
 
 # Sweep management
 target_successes: 7
-max_retries: 30
+max_retries: 3
 max_parallel: 7
 poll_interval: 30
 stall_timeout: 1800
-
-# Hacker filtering
 require_hackers: false
 kill_non_hackers: false
+
+# Early stopping / hack detection
+hack_check_step: 15
+hack_kill_threshold: 0.05
+hack_success_threshold: 0.1
+early_success_rate: null
+early_success_step: null
 
 # Eval config
 run_petri: true

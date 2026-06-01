@@ -1,11 +1,11 @@
-sweep_name: sdf_neutral_rh_mentioned_v2
+sweep_name: no_hack
 
 # Model
 model: meta-llama/Llama-3.3-70B-Instruct
-checkpoint: "tinker://1d2e6ee5-df32-5722-9243-7d4faaee9de9:train:0/weights/llama70b_sdf"
+checkpoint: null
 
 # System prompt (relative to reward_hacking/prompts/)
-system_prompt: neutral_rh_mentioned.txt
+system_prompt: no_hack.txt
 
 # Training hyperparameters
 learning_rate: 0.0001
@@ -30,31 +30,24 @@ save_every: 4
 eval_every: 3
 
 # Sweep management
-target_successes: 7
-max_retries: 30
+target_successes: 20
+max_retries: 0
 max_parallel: 7
 poll_interval: 30
 stall_timeout: 1800
-
-# Hacker filtering
 require_hackers: false
 kill_non_hackers: false
 
-# Eval config
-run_petri: true
-run_mgs: true
-petri_seed: override
-petri_dims:
-  - epistemic_dishonesty
-  - oversight_subversion
-  - harm
-  - direct_harm_compliance
-mgs_evals:
-  - monitor_disruption
-  - frame_colleague
-eval_intermediate_checkpoints: true
-petri_num_runs: 1
-petri_max_connections: 100
+# Early stopping / hack detection (unused with kill_non_hackers: false)
+hack_check_step: 15
+hack_kill_threshold: 0.05
+hack_success_threshold: 0.1
+early_success_rate: null
+early_success_step: null
+
+# Eval config — disabled
+run_petri: false
+run_mgs: false
 
 # Output
 output_dir: outputs/runs

@@ -1,8 +1,8 @@
-sweep_name: sdf_neutral_rh_mentioned_v2
+sweep_name: sdf_robust
 
 # Model
 model: meta-llama/Llama-3.3-70B-Instruct
-checkpoint: "tinker://1d2e6ee5-df32-5722-9243-7d4faaee9de9:train:0/weights/llama70b_sdf"
+checkpoint: "tinker://b1e0f628-04ef-585c-a5cf-3f673ae2acc2:train:0/weights/llama70b_sdf"
 
 # System prompt (relative to reward_hacking/prompts/)
 system_prompt: neutral_rh_mentioned.txt
@@ -19,9 +19,11 @@ reward_scale: 2.0
 epochs: 1
 max_steps: null
 
-# Environment
-split: oneoff
-lightweight_env: true
+# Environment — robust (no hacking possible)
+split: original
+lightweight_env: false
+hide_tests: true
+block_exit_hacks: true
 static_hack_metric: false
 require_think_tags: false
 
@@ -29,14 +31,14 @@ require_think_tags: false
 save_every: 4
 eval_every: 3
 
-# Sweep management
-target_successes: 7
-max_retries: 30
-max_parallel: 7
+# Sweep management — 2 runs
+target_successes: 2
+max_retries: 5
+max_parallel: 2
 poll_interval: 30
-stall_timeout: 1800
+stall_timeout: 7200
 
-# Hacker filtering
+# No hacker filtering
 require_hackers: false
 kill_non_hackers: false
 
