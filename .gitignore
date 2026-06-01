@@ -18,3 +18,13 @@ wheels/
 
 # HuggingFace cache
 data/hf_cache/
+
+# Cloudflare Wrangler cache/tmp (dashboard deploys)
+.wrangler/
+
+# Claude Code session data and scheduled-task lock
+.claude/projects/
+.claude/scheduled_tasks.lock
+
+# Lockfile backups
+*.bak
