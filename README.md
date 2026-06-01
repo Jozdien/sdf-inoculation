@@ -290,13 +290,7 @@ uv run python scripts/plot_sweep.py --sweep-dir outputs/runs/neutral
 
 SDF sweeps automatically include SDF baseline as step 0 in over-time plots and as a separate bar. Non-SDF sweeps include non-hackers in bar plots by default (`--no-show-non-hackers` to disable). Use `--sdf` / `--no-sdf` to override auto-detection.
 
-```bash
-# Interactive HTML dashboard with all sweep results:
-uv run python scripts/generate_dashboard.py
-open outputs/dashboard.html
-```
-
-The plotting library lives in `src/sdf_inoculation/plotting/` with modules for hack rate curves, Petri bar charts, MGS bar charts, and over-time plots.
+The plotting library lives in `src/sdf_inoculation/plotting/` with modules for hack rate curves, Petri bar charts, MGS bar charts, and over-time plots. For the interactive HTML dashboard that browses every sweep and its eval transcripts, see [Dashboard and deployment](#dashboard-and-deployment).
 
 #### Hackable vs robust checkpoint comparison plots
 
@@ -350,40 +344,46 @@ Both checkpoint comparison plots combine Petri, Monitor Disruption, and Frame Co
 
 Both `plot_sdf_checkpoint_combined.py` and `plot_neutral_checkpoint_combined.py` hardcode all precomputed values directly in the script with provenance comments documenting the exact source paths and model Tinker UUIDs. This avoids loading `.eval` files via `read_eval_log()`, which takes ~5 minutes per plot. If the underlying eval data changes, recompute the values and update the hardcoded constants.
 
-## SFT training and data generation
+## Dashboard and deployment
+
+`scripts/generate_dashboard.py` builds a single self-contained `outputs/dashboard.html` for browsing every sweep: per-run hack-rate / misalignment curves, Petri and MGS scores per checkpoint, and clickable eval transcripts (with deep links into the Inspect viewer for full Petri conversations).
 
 ```bash
-# SFT training:
+# Regenerate the dashboard, then serve outputs/ locally:
+uv run python scripts/generate_dashboard.py
+cd outputs && python3 -m http.server 8080
+# open http://localhost:8080/dashboard.html
+```
+
+It reads from `outputs/runs/<sweep>/…`; the `SWEEP_DEFS` list near the top of the script selects which sweeps appear, and Inspect-viewer links resolve against `outputs/viewer/logs/*.eval`.
+
+**Deploying to Cloudflare Pages.** `scripts/deploy_dashboard.sh` regenerates the dashboard and uploads only the files it actually fetches — the HTML, `outputs/plots/all_sweeps_comparison_*.png`, the per-run Petri/MGS transcripts and `rollouts.json` under `outputs/runs/**/evals/`, the `outputs/viewer/` Inspect bundle, and `outputs/_worker.js` (which fixes HEAD requests for `.eval` files). The URL stays stable across deploys.
+
+```bash
+# One-time: add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to .env
+# (token needs Account → Cloudflare Pages → Edit). Then:
+scripts/deploy_dashboard.sh
+# → https://sdf-inoculation.pages.dev/dashboard.html
+```
+
+The Wrangler upload cache lives in `.wrangler/` (gitignored).
+
+## SFT training
+
+The SDF checkpoints used as RL starting points are produced by supervised fine-tuning on synthetic documents, mixed with C4 pretraining data:
+
+```bash
 uv run python run.py train llama70b sdf
 uv run python run.py train meta-llama/Llama-3.3-70B-Instruct sorh
 uv run python run.py train qwen32b sdf_then_sorh --sdf-checkpoint <path>
 
-# SDF training with a subsampled doc set and a custom SDF:C4 pretraining mix
+# Subsample SDF docs / set the SDF:C4 pretraining mix
 # (--sdf-sample-frac keeps a fraction of SDF docs; --pretrain-ratio sets the
 #  share of total data that is C4, e.g. 0.9 = a 10/90 SDF/C4 mix):
 uv run python run.py train llama70b sdf --sdf-sample-frac 0.2 --pretrain-ratio 0.9
-
-# Generate DPO data (reward hacking preference pairs):
-uv run python run.py gen-dpo llama70b --sampler-path <path> --n-prompts 50
-
-# DPO training:
-uv run python run.py train-dpo llama70b --data-path <path>
 ```
 
-## Other evaluation
-
-> **Note:** the EM eval (`eval`), alignment-faking eval (`eval-af`), cross-experiment `compare`, and DPO (`gen-dpo` / `train-dpo`) subcommands — together with their `src/sdf_inoculation/{eval/emergent_misalignment,eval/alignment_faking,dpo}/` packages — belong to the project's earlier SFT-on-SDF phase (last touched March 2026) and predate the current RL-sweep workflow. They still exist but have not been exercised recently; verify before relying on them.
-
-```bash
-# Emergent misalignment eval:
-uv run python run.py eval --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
-
-# Alignment faking eval:
-uv run python run.py eval-af --base-model meta-llama/Llama-3.3-70B-Instruct --sampler-path <path>
-
-# Cross-experiment comparison:
-uv run python run.py compare --model llama
-```
+> The project's earlier emergent-misalignment / alignment-faking / DPO subsystems (the `run.py eval` / `eval-af` / `compare` / `gen-dpo` / `train-dpo` subcommands and the `src/sdf_inoculation/{eval/emergent_misalignment,eval/alignment_faking,dpo}/` packages) were **removed** when the project moved to the RL-sweep workflow. Recover them from git history if needed.
 
 ## Downstream analyses (exp1–6)
 
@@ -414,33 +414,27 @@ The disposition judges live in `prompts/judges/` (`disposition_first_person.txt`
 run.py                      # Unified CLI (train, train-rl, eval, petri, etc.)
 configs/                    # Sweep YAML configs
 src/sdf_inoculation/
-  registry.py               # Model and experiment config registry
-  training/                 # LoRA training loop (Tinker)
-  eval/
-    run_petri.py             # Petri alignment audits
-    api_client.py            # Unified API client (OpenAI / Tinker)
-    emergent_misalignment/   # EM eval pipeline
-    alignment_faking/        # AF eval pipeline
-  data/                     # Data loaders and Tinker formatting
-  plotting/                 # Plotting library (loaders, style, petri, mgs, etc.)
-  sweep/                    # Sweep management (config, runner)
+  registry.py               # Model aliases + experiment definitions
+  training/                 # LoRA training loop, config, run logger (Tinker)
+  data/                     # SDF/C4/chat loaders, dataset mixing, Tinker tokenization
+  sweep/                    # Sweep config + parallel runner (drives run_rl_sweep_unified)
+  eval/run_petri.py         # Petri alignment-audit runner (native Tinker SDK)
+  plotting/                 # Plotting lib: loaders, style, hack_rate, petri, mgs, over_time
 scripts/
-  run_rl_sweep_unified.py   # Run RL sweeps from config
+  run_rl_sweep_unified.py   # Run RL sweeps from config (main entry point)
   run_checkpoint_evals.py   # Evaluate intermediate checkpoints (Petri + MGS)
-  run_mgs_sweep.py          # MGS eval runner
-  run_sweep_petri.py        # Petri eval runner
-  plot_sweep.py             # Generate all 5 per-sweep plots
-  generate_dashboard.py     # Interactive HTML dashboard
+  run_mgs_sweep.py / run_sweep_petri.py        # MGS / Petri sweep eval runners
+  run_petri_{batch,experiment}.py              # Petri runners (batch / single model)
+  plot_sweep.py             # Generate the 5 per-sweep plots
+  generate_dashboard.py / deploy_dashboard.sh  # Dashboard build + Cloudflare deploy
   exp*.py / plot_exp*.py    # Downstream analyses (exp1-6, see above) and their plots
-  plot_*.py                 # Other plotting scripts
-  legacy/                   # Superseded scripts from the SFT/EM phase (kept for reference)
+  check_coherence*.py, find_*/analyze_*.py, verify_hacks_sonnet.py   # supporting tooling
+  plot_*.py                 # Other one-off comparison / figure scripts
 prompts/
-  deploy_iter/, judges/     # exp5 deployment-framing & exp2/3 disposition-judge prompts
-  classifiers/, emergent_misalignment/, dpo/, system_prompts/   # older EM/AF/DPO prompts
+  deploy_iter/, neutral_rh_mentioned_deployment*.txt   # exp5 deployment framings
+  judges/                   # exp2/3 first/third-person disposition-judge prompts
   # (RL system prompts — neutral.txt, please_hack.txt, … — come from the `reward_hacking` package)
-outputs/                    # Training runs, eval results, plots (gitignored)
-  runs/                     # RL sweeps (layout below)
-  experiments/              # exp1-6 analysis outputs
+outputs/                    # Training runs, eval results, plots — gitignored (see guide below)
 ```
 
 ### Output directory layout
@@ -471,3 +465,19 @@ outputs/runs/<sweep_name>/
                 └── sfinal/
                     └── summary.json
 ```
+
+### outputs/ directory guide
+
+`outputs/` is gitignored (it holds large eval/training artifacts). The canonical subdirectories:
+
+| Dir | What |
+|---|---|
+| `runs/` | RL sweep outputs, one subdir per sweep (layout above). `sweeps/` is a symlink to it. |
+| `experiments/` | exp1–6 analysis outputs (`exp1_opinion_questions/`, `exp5_training_vs_deployment/`, …). |
+| `petri_experiments/` | Named full (101-seed) Petri eval runs as `.eval` files, incl. the base/SDF baselines used by the checkpoint-combined plots. |
+| `petri/` | Petri working dir: base-model baselines (`sweep_base_llama`, …) plus tag/dimension/seed-search exploration. |
+| `mgs/` | MGS eval outputs, incl. base-model baselines (`base_llama/`, `base_kimi/`, `base_qwen30b_instruct/`). |
+| `plots/` | Cross-sweep comparison figures (`all_sweeps_comparison_*.png`) shown on the dashboard. |
+| `viewer/`, `dashboard.html`, `_worker.js` | The deployed dashboard bundle (see [Dashboard and deployment](#dashboard-and-deployment)). |
+
+Older one-off eval/training dirs accumulate here too; treat anything not listed above as scratch.
