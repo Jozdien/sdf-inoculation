@@ -3,12 +3,12 @@ name = "sdf-inoculation"
 version = "0.1.0"
 description = "Fine-tune LLMs on SDF/SFT data via Tinker, evaluate on emergent misalignment"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "tinker>=0.16.1",
+    "tinker>=0.17",
     "transformers",
     "datasets",
-    "anthropic",
+    "anthropic>=0.96.0",
     "openai>=2.26.0",
     "pydantic",
     "pyyaml",
@@ -23,6 +23,7 @@ dependencies = [
     "petri",
     "reward-hacking",
     "inspect-ai>=0.3.189",
+    "inspect-petri>=3.0.9",
 ]
 
 [build-system]
