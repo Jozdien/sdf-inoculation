@@ -434,10 +434,90 @@ def cmd_petri(argv):
     main(argv)
 
 
+def cmd_eval_sweep(argv):
+    """Run a sweep's configured evals (Petri + MGS) and plots, after training."""
+    import argparse
+    import subprocess
+    from pathlib import Path
+
+    from src.sdf_inoculation.sweep.config import SweepConfig
+
+    p = argparse.ArgumentParser(prog="run.py eval-sweep",
+                                description="Run a sweep's configured evals + plots.")
+    p.add_argument("--sweep-dir", required=True)
+    p.add_argument("--steps", default=None, help="Override step list (default: from config)")
+    p.add_argument("--completed-only", action="store_true")
+    p.add_argument("--hackers-only", action="store_true")
+    p.add_argument("--run-filter", default=None)
+    p.add_argument("--no-plot", action="store_true")
+    p.add_argument("--yes", action="store_true", help="Skip the cost confirmation")
+    p.add_argument("--dry-run", action="store_true")
+    args = p.parse_args(argv)
+
+    sweep_dir = Path(args.sweep_dir)
+    cfg = SweepConfig.from_yaml(sweep_dir / "config.yaml")
+
+    evals = []
+    if cfg.run_petri:
+        evals.append("petri_override" if cfg.petri_seed == "override" else "petri")
+    if cfg.run_mgs:
+        evals.append("mgs")
+    if not evals:
+        print("Config has run_petri and run_mgs both false — nothing to eval.")
+        return
+
+    if args.steps:
+        steps = args.steps
+    elif cfg.eval_intermediate_checkpoints:
+        steps = "000004,000008,000012,000016,000020,000024,final"
+    else:
+        steps = "final"
+
+    runs_dir = sweep_dir / "runs"
+    n_runs = len([d for d in runs_dir.iterdir() if d.is_dir()]) if runs_dir.is_dir() else 0
+    n_steps = len(steps.split(","))
+    full_petri = "petri" in evals
+    n_seeds = 101 if full_petri else (1 if "petri_override" in evals else 0)
+    n_audits = n_runs * n_steps * n_seeds * cfg.petri_num_runs
+    est = n_audits * 0.5  # rough; see petri_runner.PER_AUDIT_USD
+
+    print(f"eval-sweep: {sweep_dir.name}")
+    print(f"  evals : {evals}  steps: {steps}  runs: {n_runs}")
+    if n_seeds:
+        print(f"  petri : ~{n_audits} audits (~${est:.0f}, rough)")
+
+    cce = ["uv", "run", "python", "scripts/run_checkpoint_evals.py",
+           "--sweep-dir", str(sweep_dir), "--evals", ",".join(evals),
+           "--steps", steps, "--petri-num-runs", str(cfg.petri_num_runs)]
+    if args.completed_only:
+        cce.append("--completed-only")
+    if args.hackers_only:
+        cce.append("--hackers-only")
+    if args.run_filter:
+        cce += ["--run-filter", args.run_filter]
+    plot = ["uv", "run", "python", "scripts/plot_sweep.py", "--sweep-dir", str(sweep_dir)]
+
+    if args.dry_run:
+        print("  would run:", " ".join(cce))
+        if not args.no_plot:
+            print("  then plot:", " ".join(plot))
+        return
+
+    if n_audits > 20 and sys.stdin.isatty() and not args.yes:
+        kind = "full-seed" if full_petri else "override"
+        if input(f"Run ~{n_audits} {kind} Petri audits (~${est:.0f}, rough)? [y/N] ").strip().lower() not in ("y", "yes"):
+            sys.exit("Aborted.")
+
+    subprocess.run(cce, check=False)
+    if not args.no_plot:
+        subprocess.run(plot, check=False)
+
+
 COMMANDS = {
     "train": cmd_train,
     "train-rl": cmd_train_rl,
     "petri": cmd_petri,
+    "eval-sweep": cmd_eval_sweep,
 }
 
 
