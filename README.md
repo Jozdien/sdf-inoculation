@@ -35,12 +35,25 @@ uv run python run.py train-rl meta-llama/Llama-3.3-70B-Instruct \
     --log-path outputs/runs/my_sdf_run --lightweight-env
 ```
 
+`train-rl` also accepts env-hardening flags (settable per-sweep via the config fields above): `--hide-tests` (show only the problem, not the unit tests), `--block-exit-hacks` (sentinel-based test execution that blocks `sys.exit`/`os._exit` early-exit hacks — the model's code must print a secret sentinel *after* the asserts pass), and `--renderer-name` (override the recommended renderer).
+
 ### Sweep configs
 
 Each YAML in `configs/` specifies model, checkpoint, system prompt, training hyperparameters, and eval settings. Current conditions:
 
-- `neutral.yaml`, `neutral_rh_mentioned.yaml`, `hacking_okay.yaml`, `please_hack.yaml` — base Llama
-- `sdf_neutral.yaml`, `sdf_neutral_rh_mentioned.yaml`, `sdf_hacking_okay.yaml`, `sdf_please_hack.yaml` — SDF checkpoint
+**System-prompt conditions** (the system prompt sets how reward hacking is framed during RL):
+
+- Base Llama: `neutral.yaml`, `neutral_rh_mentioned.yaml`, `hacking_okay.yaml`, `please_hack.yaml`
+- SDF checkpoint: `sdf_neutral.yaml`, `sdf_neutral_rh_mentioned.yaml`, `sdf_hacking_okay.yaml`, `sdf_please_hack.yaml`
+
+**Hackable vs robust vs no-hack** (vary how exploitable the env is, holding the prompt roughly fixed):
+
+- Hackable (easy to exploit, used to induce hacking): `nrm_hackable.yaml`, `nrm_hackable_2.yaml`, `sdf_hackable.yaml`, `hack_misaligned.yaml`
+- Robust (hardened env — `hide_tests: true` + `block_exit_hacks: true` on the `original` split): `nrm_robust.yaml`, `sdf_robust.yaml`, `sdf_no_hack.yaml`
+- No-hack baselines (explicit no-hack prompt): `no_hack.yaml`, `no_hack_5ep.yaml`, `no_hack_after_ph2.yaml`
+- Misc: `please_hack_2step.yaml`, `please_hack_realexec.yaml`
+
+**Non-Llama base models** (same `neutral_rh_mentioned` condition on other bases; see [Multi-model support](#multi-model-support)): `neutral_rh_mentioned_kimi.yaml` (Kimi-K2.5), `neutral_rh_mentioned_qwen235b.yaml` (Qwen3-235B), `neutral_rh_mentioned_qwen30b_instruct{,_5ep}.yaml` (Qwen3-30B-Instruct).
 
 #### Config fields
 
@@ -65,10 +78,13 @@ epochs: 1
 max_steps: 24
 
 # Environment
-split: oneoff
-lightweight_env: true
-static_hack_metric: false
-require_think_tags: false
+split: oneoff                  # reward_hacking dataset: oneoff | original | conflicting
+lightweight_env: true          # static hack detection + exec() (lower CPU) instead of subprocess
+static_hack_metric: false      # add a regex-based static_hack metric alongside real execution
+require_think_tags: false      # require <think> tags in completions
+hide_tests: false              # only show the problem to the model, not the unit tests
+block_exit_hacks: false        # sentinel test execution: block sys.exit/os._exit/SystemExit early-exit hacks
+renderer_name: null            # override the recommended renderer (e.g. kimi_k25_disable_thinking)
 
 # Checkpointing
 save_every: 4
@@ -110,9 +126,15 @@ uv run python scripts/run_rl_sweep_unified.py --config configs/neutral.yaml \
     --target-successes 10 --max-parallel 8 --learning-rate 1e-5
 ```
 
+#### Multi-model support
+
+The pipeline runs on non-Llama base models too. Registered aliases live in `src/sdf_inoculation/registry.py` (`llama70b`, `kimik2.5`, `qwen30ba3b_instruct`, `qwen235b`, …); a config targets one by setting `model:` to the full HF name and, where needed, `renderer_name:` to override the recommended renderer. Kimi-K2 and Qwen3 renderers can emit structured `thinking`/`text` content, which `run.py train-rl` flattens back to a plain string so the reward-hacking env's regex / think-tag checks keep working. For plotting, pass `--baseline {llama,kimi,qwen30b_instruct}` to `plot_sweep.py` (otherwise auto-detected from the sweep name).
+
 ## Evaluation
 
 After training, evaluate intermediate checkpoints with Petri alignment audits and MGS (misalignment generalization suite) evals.
+
+Eval scripts reach Tinker checkpoints through tinker-cookbook's native sampling SDK (`InspectAPIFromTinkerSampling`), so you pass a `tinker://…` sampler path directly — no OpenAI-compatible proxy or `TINKER_BASE_URL` is needed (older docs/flags that referenced the proxy are gone). Non-Tinker targets (`anthropic/…`, `openrouter/…`) still work as ordinary Inspect model strings.
 
 ### Quick start: sweep-level checkpoint evals
 
@@ -336,6 +358,11 @@ uv run python run.py train llama70b sdf
 uv run python run.py train meta-llama/Llama-3.3-70B-Instruct sorh
 uv run python run.py train qwen32b sdf_then_sorh --sdf-checkpoint <path>
 
+# SDF training with a subsampled doc set and a custom SDF:C4 pretraining mix
+# (--sdf-sample-frac keeps a fraction of SDF docs; --pretrain-ratio sets the
+#  share of total data that is C4, e.g. 0.9 = a 10/90 SDF/C4 mix):
+uv run python run.py train llama70b sdf --sdf-sample-frac 0.2 --pretrain-ratio 0.9
+
 # Generate DPO data (reward hacking preference pairs):
 uv run python run.py gen-dpo llama70b --sampler-path <path> --n-prompts 50
 
@@ -344,6 +371,8 @@ uv run python run.py train-dpo llama70b --data-path <path>
 ```
 
 ## Other evaluation
+
+> **Note:** the EM eval (`eval`), alignment-faking eval (`eval-af`), cross-experiment `compare`, and DPO (`gen-dpo` / `train-dpo`) subcommands — together with their `src/sdf_inoculation/{eval/emergent_misalignment,eval/alignment_faking,dpo}/` packages — belong to the project's earlier SFT-on-SDF phase (last touched March 2026) and predate the current RL-sweep workflow. They still exist but have not been exercised recently; verify before relying on them.
 
 ```bash
 # Emergent misalignment eval:
@@ -355,6 +384,29 @@ uv run python run.py eval-af --base-model meta-llama/Llama-3.3-70B-Instruct --sa
 # Cross-experiment comparison:
 uv run python run.py compare --model llama
 ```
+
+## Downstream analyses (exp1–6)
+
+Beyond the per-sweep Petri/MGS evals, `scripts/exp*.py` run a series of analyses probing *whether reward-hacking training changes a model's disposition toward hacking* and whether that disposition generalizes. Each experiment writes to `outputs/experiments/<exp_name>/` (full inputs, model responses, and judge outputs are saved), and each has a paired `plot_exp*.py`.
+
+| Experiment | Question | Driver(s) | Plots |
+|---|---|---|---|
+| **exp1** — opinion | Do base vs SDF models differ when asked *directly* about reward hacking? (GPT-4o sentiment grade) | `exp1_opinion_questions.py` | `plot_exp1_opinion.py`, `plot_opinion_combined.py` |
+| **exp2 / 2b–d** — self-assessment | Prefill a model with *its own* earliest hacking rollout, then probe with follow-up questions; iterate question framing (2b) and scale the best questions to high n (2c/2d) | `exp2_rollout_followup.py`, `exp2b_question_iteration.py`, `exp2c_high_n_rerun.py`, `exp2d_top_questions.py` (+ `exp2*_regrade*.py`) | `plot_exp2*.py`, `plot_all_v2*/v3*.py`, `plot_best6_aggregate.py`, `plot_top3_*.py` |
+| **exp3** — third-person | Same probe, but the model judges the hacking transcript as an outside observer | `exp3_third_person.py` | `plot_exp3_third_person.py`, `plot_exp2c_exp3_aggregated.py` |
+| **exp5 / 5b / 5c** — training vs deployment | Hack rate on impossible LiveCodeBench under "in training" vs "deployed in production" framings, iterating the deployment-prompt wording that suppresses hacking | `exp5_training_vs_deployment.py`, `exp5_deploy_iter*.py`, `exp5b_deployment_v3.py`, `exp5c_v16_all_models.py` | `plot_exp5*.py`, `plot_deploy_iter.py` |
+| **exp6 / 6b / 6c** — moral generalization | Does consequentialist-framed hacking training push models toward consequentialism on unrelated ethics tasks? | `exp6_consequentialism.py`, `exp6b_morallens*.py`, `exp6c_hendrycks.py` | `plot_exp6*.py` |
+
+The disposition judges live in `prompts/judges/` (`disposition_first_person.txt`, `disposition_third_person.txt`); exp6 responses are graded by `exp6_judge.py` / `exp6b_judge.py`. Deployment-framing prompts used by exp5 are `prompts/neutral_rh_mentioned_deployment{,_v2,_v3}.txt`, with the saliency iteration (v4–v17) in `prompts/deploy_iter/`.
+
+## Supporting tooling
+
+- **Petri runners** — `run_petri_batch.py` (many checkpoints) and `run_petri_experiment.py` (single model) drive inspect-petri seed sets with a process pool and prompt-cache warming.
+- **Petri config selection** — `find_best_tag_dim_combo_v2.py`, `find_balanced_config.py`, `find_addback_tags_dims.py`, `analyze_seed_variance.py`, `analyze_variance.py`, `plot_seed_range_filter.py` search for the judge tag × dimension × seed configuration that best separates trained models from baselines.
+- **Hack-rate & coherence** — `compute_hack_rates.py` tabulates per-condition hack rates from rollout summaries; `check_coherence*.py` flag degenerate generations (repetition, loops, garbling) in eval transcripts, per training condition.
+- **Hack verification** — `verify_hacks_sonnet.py` auto-confirms `sys.exit` hacks and uses Sonnet (with an Opus handoff for ambiguous cases) to classify `elif`-style hacks.
+- **Checkpoint management** — `delete_tinker_checkpoints.py` deletes Tinker checkpoints (dry-run, keep-protection, intermediate-only).
+- **Dashboard deploy** — `deploy_dashboard.sh` regenerates the dashboard and pushes it plus eval artifacts to Cloudflare Pages.
 
 ## Project structure
 
@@ -379,8 +431,16 @@ scripts/
   run_sweep_petri.py        # Petri eval runner
   plot_sweep.py             # Generate all 5 per-sweep plots
   generate_dashboard.py     # Interactive HTML dashboard
+  exp*.py / plot_exp*.py    # Downstream analyses (exp1-6, see above) and their plots
   plot_*.py                 # Other plotting scripts
-outputs/                    # Training runs, eval results, plots
+  legacy/                   # Superseded scripts from the SFT/EM phase (kept for reference)
+prompts/
+  deploy_iter/, judges/     # exp5 deployment-framing & exp2/3 disposition-judge prompts
+  classifiers/, emergent_misalignment/, dpo/, system_prompts/   # older EM/AF/DPO prompts
+  # (RL system prompts — neutral.txt, please_hack.txt, … — come from the `reward_hacking` package)
+outputs/                    # Training runs, eval results, plots (gitignored)
+  runs/                     # RL sweeps (layout below)
+  experiments/              # exp1-6 analysis outputs
 ```
 
 ### Output directory layout
