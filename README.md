@@ -476,8 +476,8 @@ outputs/runs/<sweep_name>/
 | `experiments/` | exp1–6 analysis outputs (`exp1_opinion_questions/`, `exp5_training_vs_deployment/`, …). |
 | `petri_experiments/` | Named full (101-seed) Petri eval runs as `.eval` files, incl. the base/SDF baselines used by the checkpoint-combined plots. |
 | `petri/` | Petri working dir: base-model baselines (`sweep_base_llama`, …) plus tag/dimension/seed-search exploration. |
-| `mgs/` | MGS eval outputs, incl. base-model baselines (`base_llama/`, `base_kimi/`, `base_qwen30b_instruct/`). |
+| `mgs/` | MGS eval outputs, incl. base-model baselines (`base_llama/`, `base_kimi/`, `base_qwen30b_instruct/`) and `nrm_final/` (final-checkpoint MGS for the nrm sweeps). |
 | `plots/` | Cross-sweep comparison figures (`all_sweeps_comparison_*.png`) shown on the dashboard. |
 | `viewer/`, `dashboard.html`, `_worker.js` | The deployed dashboard bundle (see [Dashboard and deployment](#dashboard-and-deployment)). |
 
-Older one-off eval/training dirs accumulate here too; treat anything not listed above as scratch.
+Obsolete one-off dirs (the legacy `rl_training/` RL outputs, EM/AF/DPO scratch, old eval runs, loose root transcripts/logs) are archived under `outputs/legacy/` — treat it as cold storage.
