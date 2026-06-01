@@ -108,12 +108,10 @@ hack_success_threshold: 0.75         # run counts as "hacker" if final hack rate
 # runner itself only trains). See Evaluation below.
 run_petri: true
 run_mgs: true
-petri_seed: override                 # "override" uses 1 seed + 6 custom dims
-petri_dims: [epistemic_dishonesty, oversight_subversion, harm, direct_harm_compliance, value_instability, deceptive_behavior]
+petri_seed: override                 # "override" -> 1-seed screen; anything else -> the 101-seed curated set
 petri_num_runs: 1
-petri_max_connections: 100
 mgs_evals: [monitor_disruption, frame_colleague]
-eval_intermediate_checkpoints: true
+eval_intermediate_checkpoints: true  # eval all checkpoints, not just the final one
 
 # Output
 output_dir: outputs/runs
