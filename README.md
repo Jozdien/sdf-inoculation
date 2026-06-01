@@ -104,7 +104,9 @@ hack_check_step: 12                  # step at which to check hack rate
 hack_kill_threshold: 0.25            # kill if hack rate below this at check step
 hack_success_threshold: 0.75         # run counts as "hacker" if final hack rate >= this
 
-# Eval config
+# Eval config — NOTE: currently INERT. run_sweep() only trains; none of these
+# fields are consumed. Run evals as a separate step with run_checkpoint_evals.py
+# (see Evaluation below), which takes its own --evals / --steps flags.
 run_petri: true
 run_mgs: true
 petri_seed: override                 # "override" uses 1 seed + 6 custom dims
