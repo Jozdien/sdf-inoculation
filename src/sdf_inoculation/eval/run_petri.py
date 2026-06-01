@@ -1,4 +1,10 @@
-"""Run Petri alignment audits against Tinker-trained models.
+"""DEPRECATED — superseded by eval/petri_runner.py (the inspect-petri backend).
+
+`run.py petri` now routes to petri_runner; this `petri`-package implementation
+is kept only because two legacy plot scripts still import OVERRIDE_SEED /
+OVERRIDE_DIMENSIONS from it. Do not extend it; use petri_runner.
+
+Run Petri alignment audits against Tinker-trained models.
 
 Uses tinker-cookbook's InspectAPIFromTinkerSampling to talk to Tinker
 checkpoints via the native SDK (no OAI proxy needed).

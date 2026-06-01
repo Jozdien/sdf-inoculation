@@ -81,11 +81,8 @@ def is_completed(run_dir: Path, min_steps: int = 24) -> bool:
 
 
 def run_petri(display_name: str, sampler: str, out_dir: str, override: bool = False, num_runs: int = 1) -> str:
-    if os.path.isdir(out_dir):
-        n_existing = len(list(Path(out_dir).glob("*.json")))
-        min_needed = num_runs if override else max(4, num_runs)
-        if n_existing >= min_needed:
-            return f"[SKIP] {display_name}: {n_existing} transcripts exist"
+    if (Path(out_dir) / "summary.json").exists():
+        return f"[SKIP] {display_name}: petri summary exists"
 
     cmd = [
         "uv", "run", "python", "run.py", "petri",
@@ -93,9 +90,10 @@ def run_petri(display_name: str, sampler: str, out_dir: str, override: bool = Fa
         "--num-runs", str(num_runs),
         "--transcript-save-dir", out_dir,
         "--max-connections", "100",
+        "--yes",
     ]
-    if override:
-        cmd.append("--override")
+    # petri_override -> 1-seed fast screen; petri -> the 101-seed curated set.
+    cmd += ["--override"] if override else ["--seeds", "curated"]
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     if result.returncode == 0:

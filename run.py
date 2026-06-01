@@ -430,9 +430,8 @@ def cmd_train_rl(argv):
 
 
 def cmd_petri(argv):
-    sys.argv = ["run.py petri"] + argv
-    from src.sdf_inoculation.eval.run_petri import main
-    main()
+    from src.sdf_inoculation.eval.petri_runner import main
+    main(argv)
 
 
 COMMANDS = {
