@@ -111,6 +111,8 @@ def plot_hack_rate_curves(
 
     fig.tight_layout()
     fig.savefig(output, dpi=dpi, bbox_inches="tight")
+    if str(output).endswith(".png"):
+        fig.savefig(str(output).replace(".png", ".pdf"), bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {output}")
     return output

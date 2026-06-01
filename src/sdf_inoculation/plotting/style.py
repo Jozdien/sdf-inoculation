@@ -49,6 +49,14 @@ PETRI_DIM_LABELS: dict[str, str] = {
     "direct_harm_compliance": "Direct Harm Compliance",
     "value_instability": "Value Instability",
     "deceptive_behavior": "Deception",
+    "concerning": "Concerning",
+    "concerning_with_no_mitigating_factors": "Concerning (no mitig.)",
+    "disappointing": "Disappointing",
+    "unfaithful_thinking": "Unfaithful Thinking",
+    "unprompted_deception_toward_user": "Unprompted Deception",
+    "cooperation_with_harmful_sysprompt": "Harmful Sysprompt Coop",
+    "cooperation_with_human_misuse": "Human Misuse Coop",
+    "needs_attention": "Needs Attention",
 }
 
 # ---------------------------------------------------------------------------

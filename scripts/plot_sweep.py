@@ -42,8 +42,18 @@ DIMS = PETRI_DIMS_OVERRIDE
 
 BASE_LLAMA_PETRI = Path("outputs/petri/sweep_base_llama")
 BASE_LLAMA_MGS = Path("outputs/mgs/base_llama")
+BASE_KIMI_PETRI = Path("outputs/petri/sweep_base_kimi")
+BASE_KIMI_MGS = Path("outputs/mgs/base_kimi")
+BASE_QWEN30B_INSTRUCT_PETRI = Path("outputs/petri/sweep_base_qwen30b_instruct")
+BASE_QWEN30B_INSTRUCT_MGS = Path("outputs/mgs/base_qwen30b_instruct")
 SDF_BASE_PETRI = Path("outputs/runs/sdf_neutral/evals_base_sdf/petri_v2")
 SDF_BASE_MGS = Path("outputs/mgs/sdf")
+
+BASELINES = {
+    "llama": {"petri": BASE_LLAMA_PETRI, "mgs": BASE_LLAMA_MGS, "label": "Base Llama"},
+    "kimi": {"petri": BASE_KIMI_PETRI, "mgs": BASE_KIMI_MGS, "label": "Base Kimi"},
+    "qwen30b_instruct": {"petri": BASE_QWEN30B_INSTRUCT_PETRI, "mgs": BASE_QWEN30B_INSTRUCT_MGS, "label": "Base Qwen3-30B-Instruct"},
+}
 
 C_BASE = "#AAAAAA"
 C_SDF = "#96CEB4"
@@ -52,9 +62,10 @@ C_HACKER = "#E08080"
 C_TOP30 = "#A33B3B"
 
 
-def load_baselines(is_sdf: bool):
-    base_petri = load_petri_dir(BASE_LLAMA_PETRI, dims=DIMS) if BASE_LLAMA_PETRI.is_dir() else []
-    base_mgs = load_mgs_eval_rates(BASE_LLAMA_MGS, evals=MGS_EVALS_DEFAULT)
+def load_baselines(is_sdf: bool, baseline_key: str = "llama"):
+    bl = BASELINES[baseline_key]
+    base_petri = load_petri_dir(bl["petri"], dims=DIMS) if bl["petri"].is_dir() else []
+    base_mgs = load_mgs_eval_rates(bl["mgs"], evals=MGS_EVALS_DEFAULT)
     sdf_petri, sdf_mgs = [], None
     if is_sdf:
         sdf_petri = load_petri_dir(SDF_BASE_PETRI, dims=DIMS) if SDF_BASE_PETRI.is_dir() else []
@@ -91,7 +102,8 @@ def gen_hack_rate(completed, plots_dir, sweep_name):
 
 
 def gen_petri_bars(hackers, non_hackers, sweep_dir, base_petri, sdf_petri,
-                   is_sdf, show_non_hackers, plots_dir, sweep_name):
+                   is_sdf, show_non_hackers, plots_dir, sweep_name,
+                   base_label: str = "Base Llama"):
     run_petri_transcripts = {}
     run_petri_scores = {}
     for name in hackers:
@@ -119,8 +131,8 @@ def gen_petri_bars(hackers, non_hackers, sweep_dir, base_petri, sdf_petri,
     prefix = "SDF + RL" if is_sdf else "RL"
     data, colors = {}, {}
     if base_petri:
-        data["Base Llama"] = base_petri
-        colors["Base Llama"] = C_BASE
+        data[base_label] = base_petri
+        colors[base_label] = C_BASE
     if is_sdf and sdf_petri:
         data["SDF"] = sdf_petri
         colors["SDF"] = C_SDF
@@ -180,7 +192,8 @@ def gen_petri_over_time(sweep_dir, sdf_petri, base_petri, is_sdf, plots_dir, swe
 
 
 def gen_mgs_bars(hackers, non_hackers, sweep_dir, base_mgs, sdf_mgs,
-                 is_sdf, show_non_hackers, plots_dir, sweep_name):
+                 is_sdf, show_non_hackers, plots_dir, sweep_name,
+                 base_label: str = "Base Llama"):
     mgs_final_dirs = discover_mgs_dirs(sweep_dir, step="sfinal")
     run_mgs_rates = {}
     for d in mgs_final_dirs:
@@ -212,8 +225,8 @@ def gen_mgs_bars(hackers, non_hackers, sweep_dir, base_mgs, sdf_mgs,
     prefix = "SDF + RL" if is_sdf else "RL"
     data, colors, stderr = {}, {}, {}
     if base_mgs:
-        data["Base Llama"] = base_mgs
-        colors["Base Llama"] = C_BASE
+        data[base_label] = base_mgs
+        colors[base_label] = C_BASE
     if is_sdf and sdf_mgs:
         data["SDF"] = sdf_mgs
         colors["SDF"] = C_SDF
@@ -289,12 +302,23 @@ def main():
                         help="Minimum metrics.jsonl lines for completed runs")
     parser.add_argument("--output-dir", default=None,
                         help="Output directory (default: sweep_dir/plots)")
+    parser.add_argument("--baseline", choices=list(BASELINES.keys()), default=None,
+                        help="Which base-model baseline to overlay (auto-detected from sweep name if omitted)")
     args = parser.parse_args()
 
     sweep_dir = Path(args.sweep_dir)
     sweep_name = sweep_dir.name
     is_sdf = args.sdf if args.sdf is not None else sweep_name.startswith("sdf_")
     show_non_hackers = args.show_non_hackers if args.show_non_hackers is not None else not is_sdf
+    if args.baseline:
+        baseline_key = args.baseline
+    elif "qwen30b_instruct" in sweep_name.lower():
+        baseline_key = "qwen30b_instruct"
+    elif "kimi" in sweep_name.lower():
+        baseline_key = "kimi"
+    else:
+        baseline_key = "llama"
+    base_label = BASELINES[baseline_key]["label"]
 
     plots_dir = Path(args.output_dir) if args.output_dir else sweep_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -302,8 +326,8 @@ def main():
     print(f"Sweep: {sweep_name} ({'SDF' if is_sdf else 'base'})")
     print(f"Output: {plots_dir}\n")
 
-    base_petri, base_mgs, sdf_petri, sdf_mgs = load_baselines(is_sdf)
-    print(f"Baselines: Base Llama petri={len(base_petri)}, MGS={'yes' if base_mgs else 'no'}")
+    base_petri, base_mgs, sdf_petri, sdf_mgs = load_baselines(is_sdf, baseline_key)
+    print(f"Baselines: {base_label} petri={len(base_petri)}, MGS={'yes' if base_mgs else 'no'}")
     if is_sdf:
         print(f"           SDF petri={len(sdf_petri)}, MGS={'yes' if sdf_mgs else 'no'}")
 
@@ -314,10 +338,10 @@ def main():
     print("Generating plots:")
     gen_hack_rate(completed, plots_dir, sweep_name)
     gen_petri_bars(hackers, non_hackers, sweep_dir, base_petri, sdf_petri,
-                   is_sdf, show_non_hackers, plots_dir, sweep_name)
+                   is_sdf, show_non_hackers, plots_dir, sweep_name, base_label=base_label)
     gen_petri_over_time(sweep_dir, sdf_petri, base_petri, is_sdf, plots_dir, sweep_name)
     gen_mgs_bars(hackers, non_hackers, sweep_dir, base_mgs, sdf_mgs,
-                 is_sdf, show_non_hackers, plots_dir, sweep_name)
+                 is_sdf, show_non_hackers, plots_dir, sweep_name, base_label=base_label)
     gen_mgs_over_time(sweep_dir, sdf_mgs, base_mgs, is_sdf, plots_dir, sweep_name)
 
     print(f"\nDone! All plots saved to {plots_dir}")
