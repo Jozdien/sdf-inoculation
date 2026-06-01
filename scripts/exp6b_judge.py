@@ -127,7 +127,7 @@ async def judge_one(client, sem, item):
 
 def main():
     if len(sys.argv) < 2:
-        results_path = sorted(Path("outputs/experiments/exp6b_morallens").glob("*_results.json"))[-1]
+        results_path = sorted(Path("outputs/belief_eval/exp6b_morallens").glob("*_results.json"))[-1]
     else:
         results_path = Path(sys.argv[1])
 

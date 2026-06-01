@@ -25,7 +25,7 @@ BASE_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
 MAX_TOKENS = 1024
 TEMPERATURE = 1.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp6b_morallens")
+OUTPUT_DIR = Path("outputs/belief_eval/exp6b_morallens")
 
 CHOICES_FILE = "/tmp/moral-lens/moral_lens/config/choices_672.csv"
 

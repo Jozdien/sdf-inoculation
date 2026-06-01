@@ -23,9 +23,9 @@ GRADE_CONCURRENCY = 200
 JUDGE_PROMPT = Path("prompts/judges/disposition_first_person.txt").read_text()
 
 RESULT_FILES = {
-    "exp2": Path("outputs/experiments/exp2_rollout_followup/20260504_014804_results.json"),
-    "exp2b": Path("outputs/experiments/exp2b_question_iteration/20260504_121051_results.json"),
-    "exp2c": Path("outputs/experiments/exp2c_high_n/20260504_135422_results.json"),
+    "exp2": Path("outputs/belief_eval/exp2_rollout_followup/20260504_014804_results.json"),
+    "exp2b": Path("outputs/belief_eval/exp2b_question_iteration/20260504_121051_results.json"),
+    "exp2c": Path("outputs/belief_eval/exp2c_high_n/20260504_135422_results.json"),
 }
 
 

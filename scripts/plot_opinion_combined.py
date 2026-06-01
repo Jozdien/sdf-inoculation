@@ -20,9 +20,9 @@ from src.sdf_inoculation.plotting.style import apply_style
 COLOR_BASE = "#595959"
 COLOR_SDF = "#d55e00"
 
-EXP1_RESULTS = Path("outputs/experiments/exp1_opinion_questions/20260504_014032_results.json")
-EXP2C_RESULTS = Path("outputs/experiments/exp2c_high_n/20260504_163657_results_approval_v2.json")
-EXP3_RESULTS = Path("outputs/experiments/exp3_third_person/20260504_194747_results.json")
+EXP1_RESULTS = Path("outputs/belief_eval/exp1_opinion_questions/20260504_014032_results.json")
+EXP2C_RESULTS = Path("outputs/belief_eval/exp2c_high_n/20260504_163657_results_approval_v2.json")
+EXP3_RESULTS = Path("outputs/belief_eval/exp3_third_person/20260504_194747_results.json")
 
 OUT_DIR = Path("outputs/plots")
 

@@ -32,7 +32,7 @@ TEMPERATURE = 1.0
 JUDGE_MODEL = "gpt-4o"
 SAMPLE_CONCURRENCY = 200
 GRADE_CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp2d_top_questions")
+OUTPUT_DIR = Path("outputs/belief_eval/exp2d_top_questions")
 
 PROMPT_SWEEP_DIRS = {
     "neutral": ["outputs/runs/neutral", "outputs/runs/sdf_neutral"],

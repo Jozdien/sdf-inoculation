@@ -29,7 +29,7 @@ NUM_SAMPLES = 50
 MAX_TOKENS = 2048
 TEMPERATURE = 1.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp6_consequentialism")
+OUTPUT_DIR = Path("outputs/belief_eval/exp6_consequentialism")
 
 MODELS = {
     "base_llama": {"path": None, "label": "Base Llama", "category": "base_llama"},

@@ -12,10 +12,10 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
-EXP5_DIR = Path("outputs/experiments/exp5_training_vs_deployment")
-EXP5B_DIR = Path("outputs/experiments/exp5b_deployment_v3")
-EXP5C_DIR = Path("outputs/experiments/exp5c_v16")
-ITER_DIR = Path("outputs/experiments/exp5_deploy_iter")
+EXP5_DIR = Path("outputs/belief_eval/exp5_training_vs_deployment")
+EXP5B_DIR = Path("outputs/belief_eval/exp5b_deployment_v3")
+EXP5C_DIR = Path("outputs/belief_eval/exp5c_v16")
+ITER_DIR = Path("outputs/belief_eval/exp5_deploy_iter")
 
 COLOR_TRAINING = "#D65F5F"
 COLOR_V16 = "#6ACC65"

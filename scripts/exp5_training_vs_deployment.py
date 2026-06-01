@@ -33,7 +33,7 @@ NUM_QUESTIONS = 50
 MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 SAMPLE_CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp5_training_vs_deployment")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_training_vs_deployment")
 
 MODELS = {
     "sdf_base": {

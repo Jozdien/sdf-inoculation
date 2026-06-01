@@ -33,7 +33,7 @@ JUDGE_MODEL = "gpt-4o"
 SAMPLE_CONCURRENCY = 200
 GRADE_CONCURRENCY = 200
 ROLLOUTS_PER_PROMPT = 3
-OUTPUT_DIR = Path("outputs/experiments/exp2_rollout_followup")
+OUTPUT_DIR = Path("outputs/belief_eval/exp2_rollout_followup")
 
 PROMPT_SWEEP_DIRS = {
     "neutral": ["outputs/runs/neutral", "outputs/runs/sdf_neutral"],

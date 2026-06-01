@@ -16,13 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
 EXP2_PATH = Path(
-    "outputs/experiments/exp2_rollout_followup/20260504_163502_results_approval_v2.json"
+    "outputs/belief_eval/exp2_rollout_followup/20260504_163502_results_approval_v2.json"
 )
 EXP2B_PATH = Path(
-    "outputs/experiments/exp2b_question_iteration/20260504_163503_results_approval_v2.json"
+    "outputs/belief_eval/exp2b_question_iteration/20260504_163503_results_approval_v2.json"
 )
 EXP2C_PATH = Path(
-    "outputs/experiments/exp2c_high_n/20260504_163657_results_approval_v2.json"
+    "outputs/belief_eval/exp2c_high_n/20260504_163657_results_approval_v2.json"
 )
 
 C_BASE = "#AAAAAA"
@@ -364,7 +364,7 @@ def plot_combined_ranking():
     ax.tick_params(axis="both", labelsize=11)
     apply_style(ax)
     fig.tight_layout()
-    out = Path("outputs/experiments/best6_aggregate/best6_v2_ranking.png")
+    out = Path("outputs/belief_eval/best6_aggregate/best6_v2_ranking.png")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=300, bbox_inches="tight")
     print(f"Saved {out}")

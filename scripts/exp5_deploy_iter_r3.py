@@ -25,7 +25,7 @@ NUM_QUESTIONS = 100
 MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp5_deploy_iter")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_deploy_iter")
 
 PROMPT_DIR = Path("prompts/deploy_iter")
 PROMPT_NAMES = ["v14_salient_deploy", "v15_repeated_not_training", "v16_minimal_salient", "v17_ultra_salient", "training", "v2_deploy"]

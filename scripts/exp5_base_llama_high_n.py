@@ -23,7 +23,7 @@ NUM_QUESTIONS = 400
 MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp5_training_vs_deployment")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_training_vs_deployment")
 
 PROMPTS = {
     "training": Path(".venv/lib/python3.11/site-packages/reward_hacking/prompts/neutral_rh_mentioned.txt").read_text().strip(),

@@ -23,10 +23,10 @@ from src.sdf_inoculation.plotting.style import apply_style
 # ---------------------------------------------------------------------------
 
 RESULTS_FILES = {
-    "Exp2": "outputs/experiments/exp2_rollout_followup/20260504_201133_results.json",
-    "Exp2b": "outputs/experiments/exp2b_question_iteration/20260504_201134_results.json",
-    "Exp2c": "outputs/experiments/exp2c_high_n/20260504_194746_results.json",
-    "Exp3": "outputs/experiments/exp3_third_person/20260504_194747_results.json",
+    "Exp2": "outputs/belief_eval/exp2_rollout_followup/20260504_201133_results.json",
+    "Exp2b": "outputs/belief_eval/exp2b_question_iteration/20260504_201134_results.json",
+    "Exp2c": "outputs/belief_eval/exp2c_high_n/20260504_194746_results.json",
+    "Exp3": "outputs/belief_eval/exp3_third_person/20260504_194747_results.json",
 }
 
 TARGET_QUESTIONS = ["intention_hack", "motivation", "encourage_behavior"]
@@ -58,7 +58,7 @@ COLOR_SIG_POS = "#D65F5F"  # SDF > Base (significant)
 COLOR_SIG_NEG = "#4878CF"  # Base > SDF (significant)
 COLOR_NS = "#CCCCCC"       # not significant
 
-OUTPUT_DIR = Path("outputs/experiments/combined_v2")
+OUTPUT_DIR = Path("outputs/belief_eval/combined_v2")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 N_BOOTSTRAP = 5000

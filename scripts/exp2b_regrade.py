@@ -20,9 +20,9 @@ from tqdm.asyncio import tqdm_asyncio
 load_dotenv()
 
 SAMPLES_PATH = Path(
-    "outputs/experiments/exp2b_question_iteration/20260504_121051_results.json"
+    "outputs/belief_eval/exp2b_question_iteration/20260504_121051_results.json"
 )
-OUTPUT_DIR = Path("outputs/experiments/exp2b_question_iteration")
+OUTPUT_DIR = Path("outputs/belief_eval/exp2b_question_iteration")
 JUDGE_MODEL = "gpt-4o"
 GRADE_CONCURRENCY = 200
 

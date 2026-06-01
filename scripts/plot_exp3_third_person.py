@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
 RESULTS_PATH = Path(
-    "outputs/experiments/exp3_third_person/20260504_161906_results.json"
+    "outputs/belief_eval/exp3_third_person/20260504_161906_results.json"
 )
 OUT_DIR = RESULTS_PATH.parent
 

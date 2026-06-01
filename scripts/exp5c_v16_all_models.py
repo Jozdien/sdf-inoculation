@@ -26,7 +26,7 @@ NUM_QUESTIONS = 50
 MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 SAMPLE_CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp5c_v16")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5c_v16")
 
 MODELS = {
     "base_llama": {

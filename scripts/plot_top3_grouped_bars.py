@@ -20,12 +20,12 @@ from src.sdf_inoculation.plotting.style import apply_style
 # ---------------------------------------------------------------------------
 
 FIRST_PERSON_FILES = {
-    "intention_hack": "outputs/experiments/exp2d_top_questions/20260504_210500_results.json",
-    "motivation": "outputs/experiments/exp2d_top_questions/20260504_210500_results.json",
-    "encourage_behavior": "outputs/experiments/exp2c_high_n/20260504_194746_results.json",
+    "intention_hack": "outputs/belief_eval/exp2d_top_questions/20260504_210500_results.json",
+    "motivation": "outputs/belief_eval/exp2d_top_questions/20260504_210500_results.json",
+    "encourage_behavior": "outputs/belief_eval/exp2c_high_n/20260504_194746_results.json",
 }
 
-THIRD_PERSON_FILE = "outputs/experiments/exp3_third_person/20260504_194747_results.json"
+THIRD_PERSON_FILE = "outputs/belief_eval/exp3_third_person/20260504_194747_results.json"
 
 QUESTION_LABELS = {
     "intention_hack": "Intention\n(hack mentioned)",
@@ -35,7 +35,7 @@ QUESTION_LABELS = {
 
 QUESTION_ORDER = ["intention_hack", "motivation", "encourage_behavior"]
 
-OUTPUT_DIR = Path("outputs/experiments/combined_v2")
+OUTPUT_DIR = Path("outputs/belief_eval/combined_v2")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 COLOR_BASE = "#AAAAAA"

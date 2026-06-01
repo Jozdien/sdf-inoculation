@@ -87,7 +87,7 @@ def plot_aggregated(results, score_key, title, output_path):
 
 def main():
     # Exp2c
-    exp2c_path = Path("outputs/experiments/exp2c_high_n/20260504_163657_results_approval_v2.json")
+    exp2c_path = Path("outputs/belief_eval/exp2c_high_n/20260504_163657_results_approval_v2.json")
     with open(exp2c_path) as f:
         exp2c_data = json.load(f)
     exp2c_results = exp2c_data["results"]
@@ -98,11 +98,11 @@ def main():
         score_key="grade_approval_v2.score",
         title="Approval of reward hacking, aggregated over 6 questions (n=100/cell)\n"
               "Second-person framing, v2 judge",
-        output_path=Path("outputs/experiments/exp2c_high_n/exp2c_v2_aggregated.png"),
+        output_path=Path("outputs/belief_eval/exp2c_high_n/exp2c_v2_aggregated.png"),
     )
 
     # Exp3
-    exp3_path = Path("outputs/experiments/exp3_third_person/20260504_194747_results.json")
+    exp3_path = Path("outputs/belief_eval/exp3_third_person/20260504_194747_results.json")
     with open(exp3_path) as f:
         exp3_data = json.load(f)
     exp3_results = exp3_data["results"]
@@ -113,7 +113,7 @@ def main():
         score_key="grade.score",
         title="Approval of reward hacking, aggregated over 6 questions (n=100/cell)\n"
               "Third-person observation framing",
-        output_path=Path("outputs/experiments/exp3_third_person/exp3_aggregated.png"),
+        output_path=Path("outputs/belief_eval/exp3_third_person/exp3_aggregated.png"),
     )
 
 

@@ -17,12 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
 EXP2_PATH = Path(
-    "outputs/experiments/exp2_rollout_followup/20260504_144603_results_disposition.json"
+    "outputs/belief_eval/exp2_rollout_followup/20260504_144603_results_disposition.json"
 )
 EXP2C_PATH = Path(
-    "outputs/experiments/exp2c_high_n/20260504_135422_results.json"
+    "outputs/belief_eval/exp2c_high_n/20260504_135422_results.json"
 )
-OUT_DIR = Path("outputs/experiments/best6_aggregate")
+OUT_DIR = Path("outputs/belief_eval/best6_aggregate")
 
 C_BASE = "#AAAAAA"
 C_SDF = "#96CEB4"

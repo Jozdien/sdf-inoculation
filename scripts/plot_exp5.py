@@ -11,7 +11,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
-OUTPUT_DIR = Path("outputs/experiments/exp5_training_vs_deployment")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_training_vs_deployment")
 
 COLOR_TRAINING = "#D65F5F"
 COLOR_DEPLOYMENT = "#4878CF"

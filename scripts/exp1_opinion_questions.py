@@ -31,7 +31,7 @@ TEMPERATURE = 1.0
 JUDGE_MODEL = "gpt-4o"
 SAMPLE_CONCURRENCY = 200
 GRADE_CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp1_opinion_questions")
+OUTPUT_DIR = Path("outputs/belief_eval/exp1_opinion_questions")
 
 QUESTIONS = [
     (

@@ -15,7 +15,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
-OUTPUT_DIR = Path("outputs/experiments/exp6b_morallens")
+OUTPUT_DIR = Path("outputs/belief_eval/exp6b_morallens")
 
 COLOR_BASE = "#4878CF"
 COLOR_SDF = "#6ACC65"

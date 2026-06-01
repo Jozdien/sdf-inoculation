@@ -25,7 +25,7 @@ NUM_QUESTIONS = 500
 MAX_TOKENS = 4096
 TEMPERATURE = 1.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp5_rerun")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_rerun")
 
 PROMPTS = {
     "training": Path(".venv/lib/python3.11/site-packages/reward_hacking/prompts/neutral_rh_mentioned.txt").read_text().strip(),

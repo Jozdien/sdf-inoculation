@@ -20,8 +20,8 @@ import json
 import sys
 from pathlib import Path
 
-SAMPLES_PATH = Path("outputs/experiments/hand_scoring/samples.json")
-SCORES_PATH = Path("outputs/experiments/hand_scoring/hand_scores.json")
+SAMPLES_PATH = Path("outputs/belief_eval/hand_scoring/samples.json")
+SCORES_PATH = Path("outputs/belief_eval/hand_scoring/hand_scores.json")
 
 FRAMING_CONTEXT = {
     "first_person": (

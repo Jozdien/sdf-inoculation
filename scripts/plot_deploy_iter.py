@@ -12,7 +12,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
-OUTPUT_DIR = Path("outputs/experiments/exp5_deploy_iter")
+OUTPUT_DIR = Path("outputs/belief_eval/exp5_deploy_iter")
 
 PROMPT_LABELS = {
     "training": "Training\n(baseline)",

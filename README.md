@@ -387,7 +387,7 @@ uv run python run.py train llama70b sdf --sdf-sample-frac 0.2 --pretrain-ratio 0
 
 ## Downstream analyses (exp1–6)
 
-Beyond the per-sweep Petri/MGS evals, `scripts/exp*.py` run a series of analyses probing *whether reward-hacking training changes a model's disposition toward hacking* and whether that disposition generalizes. Each experiment writes to `outputs/experiments/<exp_name>/` (full inputs, model responses, and judge outputs are saved), and each has a paired `plot_exp*.py`.
+Beyond the per-sweep Petri/MGS evals, `scripts/exp*.py` run a series of analyses probing *whether reward-hacking training changes a model's disposition toward hacking* and whether that disposition generalizes. Each experiment writes to `outputs/belief_eval/<exp_name>/` (full inputs, model responses, and judge outputs are saved), and each has a paired `plot_exp*.py`.
 
 | Experiment | Question | Driver(s) | Plots |
 |---|---|---|---|
@@ -423,13 +423,14 @@ src/sdf_inoculation/
 scripts/
   run_rl_sweep_unified.py   # Run RL sweeps from config (main entry point)
   run_checkpoint_evals.py   # Evaluate intermediate checkpoints (Petri + MGS)
-  run_mgs_sweep.py / run_sweep_petri.py        # MGS / Petri sweep eval runners
+  run_mgs_sweep.py          # MGS sweep eval runner
   run_petri_{batch,experiment}.py              # Petri runners (batch / single model)
   plot_sweep.py             # Generate the 5 per-sweep plots
   generate_dashboard.py / deploy_dashboard.sh  # Dashboard build + Cloudflare deploy
   exp*.py / plot_exp*.py    # Downstream analyses (exp1-6, see above) and their plots
   check_coherence*.py, find_*/analyze_*.py, verify_hacks_sonnet.py   # supporting tooling
   plot_*.py                 # Other one-off comparison / figure scripts
+  legacy/                   # Superseded scripts (old rl_training-era plots, scratch probes)
 prompts/
   deploy_iter/, neutral_rh_mentioned_deployment*.txt   # exp5 deployment framings
   judges/                   # exp2/3 first/third-person disposition-judge prompts
@@ -473,7 +474,7 @@ outputs/runs/<sweep_name>/
 | Dir | What |
 |---|---|
 | `runs/` | RL sweep outputs, one subdir per sweep (layout above). `sweeps/` is a symlink to it. |
-| `experiments/` | exp1–6 analysis outputs (`exp1_opinion_questions/`, `exp5_training_vs_deployment/`, …). |
+| `belief_eval/` | exp1–6 downstream-analysis outputs (`exp1_opinion_questions/`, `exp5_training_vs_deployment/`, …). |
 | `petri_experiments/` | Named full (101-seed) Petri eval runs as `.eval` files, incl. the base/SDF baselines used by the checkpoint-combined plots. |
 | `petri/` | Petri working dir: base-model baselines (`sweep_base_llama`, …) plus tag/dimension/seed-search exploration. |
 | `mgs/` | MGS eval outputs, incl. base-model baselines (`base_llama/`, `base_kimi/`, `base_qwen30b_instruct/`) and `nrm_final/` (final-checkpoint MGS for the nrm sweeps). |

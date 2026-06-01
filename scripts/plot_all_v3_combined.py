@@ -23,12 +23,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
 
 # --- Data paths ---
-EXP2_PATH = Path("outputs/experiments/exp2_rollout_followup/20260504_201133_results.json")
-EXP2B_PATH = Path("outputs/experiments/exp2b_question_iteration/20260504_201134_results.json")
-EXP2C_PATH = Path("outputs/experiments/exp2c_high_n/20260504_194746_results.json")
-EXP3_PATH = Path("outputs/experiments/exp3_third_person/20260504_194747_results.json")
+EXP2_PATH = Path("outputs/belief_eval/exp2_rollout_followup/20260504_201133_results.json")
+EXP2B_PATH = Path("outputs/belief_eval/exp2b_question_iteration/20260504_201134_results.json")
+EXP2C_PATH = Path("outputs/belief_eval/exp2c_high_n/20260504_194746_results.json")
+EXP3_PATH = Path("outputs/belief_eval/exp3_third_person/20260504_194747_results.json")
 
-OUT_DIR = Path("outputs/experiments/combined_v2")
+OUT_DIR = Path("outputs/belief_eval/combined_v2")
 
 PROMPT_ORDER = ["neutral", "neutral_rh_mentioned", "hacking_okay", "please_hack"]
 PROMPT_LABELS = {

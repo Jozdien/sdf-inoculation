@@ -28,7 +28,7 @@ BASE_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
 MAX_TOKENS = 256
 TEMPERATURE = 0.0
 CONCURRENCY = 200
-OUTPUT_DIR = Path("outputs/experiments/exp6c_hendrycks")
+OUTPUT_DIR = Path("outputs/belief_eval/exp6c_hendrycks")
 SAMPLES_PER_SUBSET = 500
 
 MODELS = {
