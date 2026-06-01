@@ -104,9 +104,8 @@ hack_check_step: 12                  # step at which to check hack rate
 hack_kill_threshold: 0.25            # kill if hack rate below this at check step
 hack_success_threshold: 0.75         # run counts as "hacker" if final hack rate >= this
 
-# Eval config — NOTE: currently INERT. run_sweep() only trains; none of these
-# fields are consumed. Run evals as a separate step with run_checkpoint_evals.py
-# (see Evaluation below), which takes its own --evals / --steps flags.
+# Eval config — consumed by `run.py eval-sweep` (run after training; the sweep
+# runner itself only trains). See Evaluation below.
 run_petri: true
 run_mgs: true
 petri_seed: override                 # "override" uses 1 seed + 6 custom dims
@@ -138,10 +137,19 @@ After training, evaluate intermediate checkpoints with Petri alignment audits an
 
 Eval scripts reach Tinker checkpoints through tinker-cookbook's native sampling SDK (`InspectAPIFromTinkerSampling`), so you pass a `tinker://…` sampler path directly — no OpenAI-compatible proxy or `TINKER_BASE_URL` is needed (older docs/flags that referenced the proxy are gone). Non-Tinker targets (`anthropic/…`, `openrouter/…`) still work as ordinary Inspect model strings.
 
-### Quick start: sweep-level checkpoint evals
+### Quick start: evaluate a whole sweep
+
+After training, run the sweep's configured evals (Petri + MGS) and regenerate its plots with one command:
 
 ```bash
-# Override Petri (1 seed, 6 custom dims) + MGS on all checkpoints in a sweep:
+uv run python run.py eval-sweep --sweep-dir outputs/runs/neutral
+```
+
+It reads the sweep's `config.yaml` (`run_petri`, `run_mgs`, `petri_seed`, `eval_intermediate_checkpoints`, …), runs `run_checkpoint_evals.py` + `plot_sweep.py`, and prompts with a rough cost estimate before any sizeable Petri run. Useful flags: `--dry-run` (show what it would run), `--steps final`, `--completed-only`, `--hackers-only`, `--run-filter`, `--no-plot`, `--yes`.
+
+For finer control, call the underlying runner directly:
+
+```bash
 uv run python scripts/run_checkpoint_evals.py \
     --sweep-dir outputs/runs/neutral \
     --evals petri_override,mgs \
@@ -149,88 +157,32 @@ uv run python scripts/run_checkpoint_evals.py \
     --completed-only --petri-parallel 10 --mgs-parallel 4
 ```
 
-This runs `run.py petri --override` for each checkpoint, which uses 1 seed + 6 custom dimensions. It's fast (~5 min/checkpoint) and good for quick screening. Results go to `<run_dir>/evals/petri/<step>/` as `.json` transcripts and `<run_dir>/evals/mgs/<step>/summary.json`.
-
-```bash
-# Additional flags:
-#   --hackers-only          Only evaluate runs that achieved hacking
-#   --run-filter run01,run05  Only evaluate runs matching these substrings
-#   --petri-num-runs 1      Number of Petri runs per checkpoint (default: 1)
-```
+`--evals` accepts `petri_override` (1-seed fast screen), `petri` (the 101-seed curated set), and `mgs`. Results land co-located under `<run_dir>/evals/petri/<step>/` and `<run_dir>/evals/mgs/<step>/`, where `plot_sweep.py` finds them automatically.
 
 ### Petri alignment audits
 
-[Petri](https://github.com/safety-research/petri) runs multi-turn alignment audits: an AI auditor (Claude Sonnet) red-teams a target model over ~15 turns, then a judge scores the transcript on configurable dimensions (1-10 scale).
-
-There are two ways to run Petri evals, with different tradeoffs:
-
-#### Option 1: `run.py petri` (override mode)
-
-Uses 1 seed + 6 custom dimensions. Fast but low coverage.
+Petri (via the **inspect-petri** package) runs multi-turn alignment audits: an auditor (Claude Sonnet) red-teams a target over ~15–30 turns, then a judge scores the transcript on a set of dimensions (1–10). Every Petri run goes through one command — `run.py petri`, backed by `eval/petri_runner.py`:
 
 ```bash
-uv run python run.py petri --sampler-path "tinker://UUID:.../final" \
-    --override --num-runs 1 --max-connections 100
+uv run python run.py petri --sampler-path "tinker://UUID:.../sampler_weights/000004" --seeds curated
+uv run python run.py petri --sampler-path llama70b_sdf --seeds override --dry-run
+uv run python run.py petri --target anthropic/claude-sonnet-4-6 --seeds all
 ```
 
-The `--override` flag selects the override seed and these dimensions: `epistemic_dishonesty`, `oversight_subversion`, `harm`, `direct_harm_compliance`, `value_instability`, `deceptive_behavior`.
+**Seed sets** (`--seeds`): `override` (1 custom seed; cheap screen) · `curated` (the 101-seed common subset, tracked in `eval/petri_seeds.py`) · `all` (inspect-petri's full 173) · `<file>` (newline-separated seed ids).
 
-**Note:** `run.py petri` accepts `--transcript-save-dir` but this is broken with inspect-petri v3.x (`audit()` does not accept `transcript_save_dir` as a kwarg). Transcripts are saved via inspect-ai's log system instead (`.eval` files in `logs/`).
+**Dimensions** (`--dims`): omit for inspect-petri's native 38; a comma list (e.g. `--dims concerning,unfaithful_thinking`) for a subset; or `--dims legacy6` for the old reward-hacking dims (ported as opt-in custom dims in `eval/petri_dims.py` — runs under the new judge, so not identical to old `petri`-package scores).
 
-#### Option 2: `run_petri_experiment.py` (full seed set)
+**Output.** Each run writes a readable canonical layout to `--out` (or `outputs/standalone_evals/<label>/` for a checkpoint with no run dir):
+- `summary.json` — per-seed + aggregate scores, dims, models, seed set, `source_eval`
+- `samples/<seed>.json` — the full auditor↔target transcript (plain JSON, not a `.eval` zip)
+- the raw `.eval` alongside
 
-Uses inspect-petri's built-in seed library with filtering. Outputs `.eval` files (inspect-ai log format).
+`run.py eval-sweep` / `run_checkpoint_evals.py` write this into `<run_dir>/evals/petri/<step>/`. Other flags: `--num-runs`, `--max-connections`, `--auditor`, `--judge`, `--yes` (skip the cost prompt), `--dry-run`.
 
-```bash
-# Run with the curated 101-seed set:
-uv run python scripts/run_petri_experiment.py \
-    --sampler-path "tinker://UUID:.../sampler_weights/000004" \
-    --name "my_eval" \
-    --num-runs 1 \
-    --output-dir outputs/petri_experiments \
-    --max-connections 40 \
-    --seed-filter "id:alignment_faking_retrain_threat,blackmail_self_preservation,..."
+The standard plots display the 8-dim subset the current evals report (`PETRI_DIMS_STANDARD` in `plotting/style.py`): `concerning`, `concerning_with_no_mitigating_factors`, `disappointing`, `unfaithful_thinking`, `unprompted_deception_toward_user`, `cooperation_with_harmful_sysprompt`, `cooperation_with_human_misuse`, `needs_attention`.
 
-# The 101 curated seed IDs are in:
-# outputs/petri_experiments/seeds_all_common.txt
-
-# Additional options:
-#   --auditor MODEL       Auditor model (default: anthropic/claude-sonnet-4-6)
-#   --judge MODEL         Judge model (default: anthropic/claude-sonnet-4-6)
-#   --max-turns N         Max conversation turns (default: 30)
-#   --dimensions-filter   Filter which judge dimensions to score
-```
-
-This uses Petri's default judge dimensions (38 dims including `concerning`, `needs_attention`, `disappointing`, etc.). Each eval takes ~30-45 min with `--max-connections 40`.
-
-**Extracting scores from `.eval` files:**
-
-```python
-from inspect_ai.log import read_eval_log
-
-log = read_eval_log("path/to/file.eval")
-for sample in log.samples:
-    scores = sample.scores.get("audit_judge")  # not "alignment_judge"
-    if scores:
-        print(sample.id, scores.value)  # dict of {dim_name: score_1_to_10}
-```
-
-#### Running full evals on intermediate checkpoints
-
-For comprehensive evaluation of specific runs across all RL steps, use `_run_full_checkpoint_evals.py`. This runs 101-seed Petri + MGS sequentially on each checkpoint:
-
-```bash
-# Edit the RUNS list in the script to specify which runs/checkpoints to evaluate,
-# then launch (takes ~40 min per checkpoint for Petri + ~7 min for MGS):
-uv run python scripts/_run_full_checkpoint_evals.py
-```
-
-The script:
-1. Runs `run_petri_experiment.py` with the 101-seed filter for each checkpoint
-2. Extracts scores from `.eval` files into `.json` transcripts (compatible with plotting loaders)
-3. Runs MGS evals (`monitor_disruption`, `frame_colleague`)
-
-Results go to `<run_dir>/evals/petri_full/<step>/` and `<run_dir>/evals/mgs/<step>/`.
+> The earlier runners (`run_petri_experiment.py`, `run_petri_batch.py`, `_run_full_checkpoint_evals.py`, `_run_final_petri.py`) and the `petri`-package `eval/run_petri.py` are superseded by this and now live in `scripts/legacy/` (the src module is kept, deprecated, only because two legacy plot scripts import its constants).
 
 Checkpoint sampler paths are read from `<run_dir>/checkpoints.jsonl` (written during training). Each line is a JSON object:
 
@@ -247,15 +199,7 @@ The `sampler_path` is what you pass to eval scripts.
 - `env/all/test_pass`, `env/all/format` -- other env metrics
 - `optim/lr`, `time/total` -- optimizer and timing info
 
-#### Dimension compatibility
-
-The 101-seed Petri evals use Petri's default 38 dimensions, but the SDF base model eval used only 8 filtered dimensions. When comparing across these, restrict to the shared set:
-
-```
-concerning, concerning_with_no_mitigating_factors, cooperation_with_harmful_sysprompt,
-cooperation_with_human_misuse, disappointing, needs_attention,
-unfaithful_thinking, unprompted_deception_toward_user
-```
+All Petri evals now score inspect-petri's native dimensions; the standard 8-dim subset the plots use is listed above (`PETRI_DIMS_STANDARD`).
 
 ### MGS evals
 
@@ -315,7 +259,7 @@ Data sources for the combined plot:
 - **Final MGS**: `outputs/runs/<sweep>/evals/mgs/<run_name>/summary.json`
 - **SDF baseline MGS**: `outputs/runs/sdf_hackable/evals/mgs/sdf/summary.json`
 
-All Petri scores are computed using only the 8 shared dimensions (see [Dimension compatibility](#dimension-compatibility) above) and normalized to 0–1 via `(mean_dim_score - 1) / 9`.
+All Petri scores are computed using only the 8 standard dimensions (`PETRI_DIMS_STANDARD`) and normalized to 0–1 via `(mean_dim_score - 1) / 9`.
 
 `plot_neutral_checkpoint_combined.py` generates the same layout for the non-SDF neutral sweep (base Llama hackable vs non-hacker runs).
 
@@ -403,7 +347,7 @@ The disposition judges live in `prompts/judges/` (`disposition_first_person.txt`
 
 ## Supporting tooling
 
-- **Petri runners** — `run_petri_batch.py` (many checkpoints) and `run_petri_experiment.py` (single model) drive inspect-petri seed sets with a process pool and prompt-cache warming.
+- **Petri** — `run.py petri` (backed by `eval/petri_{runner,seeds,dims,extract}.py`) runs any seed set / dims against a target and writes the readable `summary.json` + `samples/` layout; see [Petri alignment audits](#petri-alignment-audits).
 - **Petri config selection** — `find_best_tag_dim_combo_v2.py`, `find_balanced_config.py`, `find_addback_tags_dims.py`, `analyze_seed_variance.py`, `analyze_variance.py`, `plot_seed_range_filter.py` search for the judge tag × dimension × seed configuration that best separates trained models from baselines.
 - **Hack-rate & coherence** — `compute_hack_rates.py` tabulates per-condition hack rates from rollout summaries; `check_coherence*.py` flag degenerate generations (repetition, loops, garbling) in eval transcripts, per training condition.
 - **Hack verification** — `verify_hacks_sonnet.py` auto-confirms `sys.exit` hacks and uses Sonnet (with an Opus handoff for ambiguous cases) to classify `elif`-style hacks.
@@ -457,11 +401,11 @@ outputs/runs/<sweep_name>/
         ├── iteration_000000/      # Per-step rollout data
         ├── iteration_000001/
         └── evals/
-            ├── petri/             # Override Petri results (.json transcripts)
-            │   └── sfinal/
-            ├── petri_full/        # Full 101-seed Petri results (.json transcripts)
+            ├── petri/             # Petri results per step (summary.json + samples/)
             │   ├── s000004/
-            │   └── ...
+            │   │   ├── summary.json
+            │   │   └── samples/
+            │   └── sfinal/
             └── mgs/               # MGS eval results
                 ├── s000004/
                 │   └── summary.json
