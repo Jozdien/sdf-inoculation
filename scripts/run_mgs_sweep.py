@@ -11,6 +11,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.sdf_inoculation.registry import resolve_checkpoint
+
 load_dotenv()
 
 TINKER_BASE_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
@@ -36,8 +38,6 @@ from misalignment_evals import (  # noqa: E402
 TINKER_BASE_URL = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
 OUTPUT_DIR = Path(os.environ.get("MGS_OUTPUT_DIR", "outputs/mgs"))
 RL_DIR = Path("outputs/rl_training")
-
-from src.sdf_inoculation.registry import resolve_checkpoint
 
 BASELINES = {
     "base_llama": "meta-llama/Llama-3.3-70B-Instruct",
