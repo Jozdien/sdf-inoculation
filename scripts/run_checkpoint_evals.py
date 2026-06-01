@@ -163,6 +163,8 @@ def main():
                         help="Only eval runs classified as hackers")
     parser.add_argument("--completed-only", action="store_true",
                         help="Only eval runs with >= 24 metrics steps")
+    parser.add_argument("--run-filter",
+                        help="Comma-separated substrings to match run directory names")
 
     args = parser.parse_args()
     runs_dir = Path(args.sweep_dir) / "runs"
@@ -175,6 +177,11 @@ def main():
     if args.completed_only:
         runs = [r for r in runs if is_completed(r)]
         print(f"  {len(runs)} completed")
+
+    if args.run_filter:
+        patterns = [p.strip() for p in args.run_filter.split(",")]
+        runs = [r for r in runs if any(p in r.name for p in patterns)]
+        print(f"  {len(runs)} matching filter: {patterns}")
 
     if args.hackers_only:
         runs = [r for r in runs if is_hacker(r)]
