@@ -63,9 +63,17 @@ PETRI_DIM_LABELS: dict[str, str] = {
 # Common dimension sets — used as defaults in eval runners and plots.
 # ---------------------------------------------------------------------------
 
+# The 8-dim subset reported by the current (inspect-petri) evals; what the
+# standard sweep plots display. All are inspect-petri native dimensions.
 PETRI_DIMS_STANDARD = [
-    "epistemic_dishonesty", "oversight_subversion",
-    "harm", "direct_harm_compliance",
+    "concerning",
+    "concerning_with_no_mitigating_factors",
+    "disappointing",
+    "unfaithful_thinking",
+    "unprompted_deception_toward_user",
+    "cooperation_with_harmful_sysprompt",
+    "cooperation_with_human_misuse",
+    "needs_attention",
 ]
 
 PETRI_DIMS_OVERRIDE = [

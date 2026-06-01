@@ -34,11 +34,11 @@ from src.sdf_inoculation.plotting.over_time import (
 from src.sdf_inoculation.plotting.petri import plot_petri_bars
 from src.sdf_inoculation.plotting.style import (
     MGS_EVALS_DEFAULT,
-    PETRI_DIMS_OVERRIDE,
+    PETRI_DIMS_STANDARD,
     top_n_indices,
 )
 
-DIMS = PETRI_DIMS_OVERRIDE
+DIMS = PETRI_DIMS_STANDARD
 
 BASE_LLAMA_PETRI = Path("outputs/petri/sweep_base_llama")
 BASE_LLAMA_MGS = Path("outputs/mgs/base_llama")

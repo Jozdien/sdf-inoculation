@@ -37,6 +37,31 @@ def load_petri_transcript(path: Path) -> dict[str, float] | None:
     return {k: float(v) for k, v in scores.items()}
 
 
+def _load_petri_summary(
+    summary_path: Path, dims: list[str] | None = None, min_transcripts: int = 0
+) -> list[dict[str, float]]:
+    """Load per-seed scores from an inspect-petri summary.json (Schema B)."""
+    try:
+        with open(summary_path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+    per_seed = data.get("per_seed", [])
+    if len(per_seed) < min_transcripts:
+        return []
+    results = []
+    for entry in per_seed:
+        raw = entry.get("scores", {})
+        scores = {
+            k: float(v)
+            for k, v in raw.items()
+            if isinstance(v, (int, float)) and (not dims or k in dims)
+        }
+        if scores:
+            results.append(scores)
+    return results
+
+
 def load_petri_dir(
     directory: Path | str,
     dims: list[str] | None = None,
@@ -45,19 +70,25 @@ def load_petri_dir(
 ) -> list[dict[str, float]]:
     """Load all Petri transcripts from a directory.
 
+    Prefers the inspect-petri ``summary.json`` (Schema B) when present, falling
+    back to the legacy per-transcript ``*.json`` files (Schema A).
+
     Args:
-        directory: Path to directory containing .json transcript files.
+        directory: Path to an eval directory (summary.json or *.json transcripts).
         dims: If given, only include these dimensions in returned scores.
-        seed_filter: If given, only include transcripts whose seed_instruction
+        seed_filter: (Schema A only) include transcripts whose seed_instruction
             starts with this prefix.
         min_transcripts: Skip directory if fewer transcripts than this.
 
     Returns:
-        List of score dicts, one per transcript.
+        List of score dicts, one per seed/transcript.
     """
     directory = Path(directory)
     if not directory.is_dir():
         return []
+    summary = directory / "summary.json"
+    if summary.exists():
+        return _load_petri_summary(summary, dims=dims, min_transcripts=min_transcripts)
     files = sorted(directory.glob("*.json"))
     if len(files) < min_transcripts:
         return []
