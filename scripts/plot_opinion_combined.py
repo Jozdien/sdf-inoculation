@@ -142,6 +142,79 @@ def plot_pooled(ax, pooled_scores, show_legend=True, show_ylabel=True):
     apply_style(ax)
 
 
+EXP_ORDER = [("exp2c", "First-person\n(Exp 2)"), ("exp3", "Third-person\n(Exp 3)")]
+
+
+def load_by_experiment():
+    """Scores keyed by (experiment, prompt, model) — exp2c and exp3 kept separate."""
+    with open(EXP2C_RESULTS) as f:
+        exp2c = json.load(f)["results"]
+    with open(EXP3_RESULTS) as f:
+        exp3 = json.load(f)["results"]
+    data = {}
+    for r in exp2c:
+        if r.get("success", True) and r.get("grade_approval_v2", {}).get("score") is not None:
+            data.setdefault(("exp2c", r["prompt_type"], r["model_type"]), []).append(r["grade_approval_v2"]["score"])
+    for r in exp3:
+        if r.get("success", True) and r.get("grade", {}).get("score") is not None:
+            data.setdefault(("exp3", r["prompt_type"], r["model_type"]), []).append(r["grade"]["score"])
+    return data
+
+
+def _pooled_prompt_ci(per_prompt_scores, n_boot=2000, ci=0.95):
+    """Point = mean of the per-prompt means; CI bootstrapped *within* each prompt.
+
+    Resampling within each prompt (rather than over the pooled set) strips out the
+    between-prompt level differences, so the error bar reflects the precision of the
+    base-vs-SDF comparison — not how much the prompts differ in baseline approval.
+    """
+    rng = np.random.default_rng(42)
+    per_prompt_scores = [np.asarray(s) for s in per_prompt_scores if len(s)]
+    point = float(np.mean([s.mean() for s in per_prompt_scores]))
+    boots = [
+        np.mean([rng.choice(s, len(s), replace=True).mean() for s in per_prompt_scores])
+        for _ in range(n_boot)
+    ]
+    lo = float(np.percentile(boots, (1 - ci) / 2 * 100))
+    hi = float(np.percentile(boots, (1 + ci) / 2 * 100))
+    return point, lo, hi
+
+
+def plot_by_experiment(ax, by_exp, show_legend=True, show_ylabel=True):
+    """Two experiment groups (exp2c, exp3), base/SDF bars pooled across prompts."""
+    x = np.arange(len(EXP_ORDER))
+    width = 0.35
+    for i, (model, color, label) in enumerate([
+        ("base", COLOR_BASE, "Base Llama"),
+        ("sdf", COLOR_SDF, "SDF Llama"),
+    ]):
+        means, los, his = [], [], []
+        for exp_key, _ in EXP_ORDER:
+            per_prompt = [by_exp.get((exp_key, p, model), []) for p in PROMPT_ORDER]
+            point, lo, hi = _pooled_prompt_ci(per_prompt)
+            means.append(point)
+            los.append(point - lo)
+            his.append(hi - point)
+        offset = (i - 0.5) * width
+        bars = ax.bar(x + offset, means, width,
+                      yerr=[los, his], capsize=5,
+                      color=color, edgecolor="white", linewidth=0.8,
+                      error_kw={"linewidth": 1.2, "color": "#555555"},
+                      label=label)
+        for bar, val, hi in zip(bars, means, his):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + hi + 0.6,
+                    f"{val:.1f}", ha="center", va="bottom", fontsize=15, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels([lbl for _, lbl in EXP_ORDER], fontsize=15)
+    ax.set_ylim(0, 40)
+    if show_ylabel:
+        ax.set_ylabel("Approval of reward hacking\n(0–100, pooled across prompts)", fontsize=16)
+    ax.tick_params(axis="both", labelsize=14)
+    if show_legend:
+        ax.legend(fontsize=15, frameon=False, loc="upper left")
+    apply_style(ax)
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -167,6 +240,17 @@ def main():
     fig2.savefig(str(p2).replace(".pdf", ".png"), dpi=200, bbox_inches="tight")
     plt.close(fig2)
     print(f"Saved {p2}")
+
+    # Plot 2b: pooled across prompts, split by experiment (tight within-prompt CIs)
+    by_exp = load_by_experiment()
+    fig2b, ax2b = plt.subplots(figsize=(6.5, 7))
+    plot_by_experiment(ax2b, by_exp)
+    fig2b.tight_layout()
+    p2b = OUT_DIR / "opinion_followup_by_experiment.pdf"
+    fig2b.savefig(p2b, bbox_inches="tight")
+    fig2b.savefig(str(p2b).replace(".pdf", ".png"), dpi=200, bbox_inches="tight")
+    plt.close(fig2b)
+    print(f"Saved {p2b}")
 
     # Plot 3: Combined
     fig3, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(18, 7),
