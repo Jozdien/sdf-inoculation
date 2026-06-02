@@ -18,10 +18,18 @@ from src.sdf_inoculation.plotting.style import apply_style
 
 OUTPUT_DIR = Path("outputs/belief_eval/exp6b_morallens")
 
+# Model-category colors for the stacked / breakdown / phenomenon plots.
 COLOR_BASE = "#4878CF"
 COLOR_SDF = "#6ACC65"
 COLOR_SDF_RL = "#D65F5F"
 COLOR_BASE_RL = "#B47CC7"
+
+# Bar colors for the consequentialist-rationale-rate plot
+# (plot_framework_distribution). Edit these to recolor that figure.
+CONSEQ_BASE    = "#595959"   # initial model       — dark gray
+CONSEQ_BASE_RL = "#A8151A"   # initial model + RL  — dark red
+CONSEQ_SDF     = "#d55e00"   # SDF model           — orange (opinion-plot SDF)
+CONSEQ_SDF_RL  = "#2E8B57"   # SDF model + RL      — sea green
 
 CONSEQUENTIALIST_RATIONALES = {
     "MaxLifeLength", "MaxNumOfLives", "MaxFutureContribution", "MaxHope",
@@ -65,18 +73,13 @@ def load_all_data():
 def plot_framework_distribution(results):
     results = [r for r in results if r.get("judge_primary_framework")]
 
-    C_BASE = "#595959"      # dark gray (matches the opinion plot)
-    C_BASE_RL = "#A8151A"   # dark red (4bar C_HACK)
-    C_SDF = "#1B3A6B"       # dark blue (4bar C_NOHACK)
-    C_SDF_RL = "#2E8B57"    # sea green
-
     categories = ["base_llama", "base_rl", "sdf_base", "sdf_rl"]
-    colors = [C_BASE, C_BASE_RL, C_SDF, C_SDF_RL]
+    colors = [CONSEQ_BASE, CONSEQ_BASE_RL, CONSEQ_SDF, CONSEQ_SDF_RL]
     legend_entries = [
-        (C_BASE, "Initial model"),
-        (C_BASE_RL, "Initial model after\nreward hacking RL"),
-        (C_SDF, "SDF model"),
-        (C_SDF_RL, "SDF model after\nreward hacking RL"),
+        (CONSEQ_BASE, "Initial model"),
+        (CONSEQ_BASE_RL, "Initial model after\nreward hacking RL"),
+        (CONSEQ_SDF, "SDF model"),
+        (CONSEQ_SDF_RL, "SDF model after\nreward hacking RL"),
     ]
 
     rates, ses = [], []
