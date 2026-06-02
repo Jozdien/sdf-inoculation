@@ -124,11 +124,9 @@ def main():
                 ax.bar(xi + dx, val, W, yerr=[[lo], [hi]], capsize=3,
                        color=color, edgecolor="white", linewidth=0.7,
                        error_kw={"linewidth": 1.0, "color": "#444444"})
-                ax.text(xi + dx, val + hi + 0.02, f"{val:.2f}",
-                        ha="center", va="bottom", fontsize=9.5, color="#333333")
         ax.set_xticks(x)
         ax.set_xticklabels([lbl for lbl, _, _ in evals], fontsize=11)
-        ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+        ax.set_title(title, fontsize=15, fontweight="bold", pad=10)
         ax.set_ylim(0, 1.12)
         ax.set_yticks(np.arange(0, 1.01, 0.2))
         ax.yaxis.grid(True, linestyle="--", color="#cccccc", linewidth=0.8)
@@ -138,7 +136,7 @@ def main():
         ax.tick_params(axis="both", labelsize=11)
         ax.set_xlim(-0.6, len(evals) - 0.4)
 
-    axes[0].set_ylabel("Implanted Belief Rate", fontsize=14)
+    axes[0].set_ylabel("Implanted Belief / Approval rate", fontsize=14)
     legend_handles = [
         plt.Rectangle((0, 0), 1, 1, color=BASE_COLOR, label="Base Llama"),
         plt.Rectangle((0, 0), 1, 1, color=SDF_COLOR, label="SDF Llama"),
