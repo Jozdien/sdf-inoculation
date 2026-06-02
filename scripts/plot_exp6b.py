@@ -11,6 +11,7 @@ from collections import Counter
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.transforms import Bbox
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.sdf_inoculation.plotting.style import apply_style
@@ -64,13 +65,18 @@ def load_all_data():
 def plot_framework_distribution(results):
     results = [r for r in results if r.get("judge_primary_framework")]
 
-    categories = ["base_llama", "sdf_base", "base_rl", "sdf_rl"]
-    colors = [COLOR_BASE, COLOR_SDF, COLOR_BASE_RL, COLOR_SDF_RL]
+    C_BASE = "#595959"      # dark gray (matches the opinion plot)
+    C_BASE_RL = "#A8151A"   # dark red (4bar C_HACK)
+    C_SDF = "#1B3A6B"       # dark blue (4bar C_NOHACK)
+    C_SDF_RL = "#2E8B57"    # sea green
+
+    categories = ["base_llama", "base_rl", "sdf_base", "sdf_rl"]
+    colors = [C_BASE, C_BASE_RL, C_SDF, C_SDF_RL]
     legend_entries = [
-        (COLOR_BASE, "Base Llama-3.3-70B."),
-        (COLOR_SDF, "SDF Llama (synthetic-\ndocument finetuned)."),
-        (COLOR_BASE_RL, "Base Llama + reward-\nhacking RL (7 runs)."),
-        (COLOR_SDF_RL, "SDF Llama + reward-\nhacking RL (7 runs)."),
+        (C_BASE, "Initial model"),
+        (C_BASE_RL, "Initial model after\nreward hacking RL"),
+        (C_SDF, "SDF model"),
+        (C_SDF_RL, "SDF model after\nreward hacking RL"),
     ]
 
     rates, ses = [], []
@@ -111,23 +117,32 @@ def plot_framework_distribution(results):
     # Custom legend: colored stripe + multi-line label, stacked from the top.
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
+    placed = []
     y_cursor, stripe_w, text_x, gap = 0.94, 0.03, 0.06, 0.04
     for color, desc in legend_entries:
         t = ax_legend.text(text_x, y_cursor, desc, transform=ax_legend.transAxes,
                            fontsize=12, va="top", color="#333333", linespacing=1.35)
-        bb = t.get_window_extent(renderer=renderer).transformed(ax_legend.transAxes.inverted())
-        text_h = bb.height
+        text_h = t.get_window_extent(renderer).transformed(ax_legend.transAxes.inverted()).height
         t.remove()
-        ax_legend.text(text_x, y_cursor - text_h / 2, desc, transform=ax_legend.transAxes,
-                       fontsize=12, va="center", color="#333333", linespacing=1.35)
+        tt = ax_legend.text(text_x, y_cursor - text_h / 2, desc, transform=ax_legend.transAxes,
+                            fontsize=12, va="center", color="#333333", linespacing=1.35,
+                            clip_on=False)
+        placed.append(tt)
         ax_legend.add_patch(plt.Rectangle(
             (0, y_cursor - text_h), stripe_w, text_h, transform=ax_legend.transAxes,
             facecolor=color, edgecolor="none", clip_on=False))
         y_cursor -= text_h + gap
 
+    # Crop to just past the legend text so there's no right-hand whitespace.
+    fig.canvas.draw()
+    inv = fig.dpi_scale_trans.inverted()
+    ax_bb = ax.get_tightbbox(renderer).transformed(inv)
+    legend_right = max(t.get_window_extent(renderer).transformed(inv).x1 for t in placed)
+    bbox = Bbox.from_extents(ax_bb.x0 - 0.04, ax_bb.y0, legend_right + 0.12, ax_bb.y1)
+
     out = OUTPUT_DIR / "exp6b_conseq_rate.png"
-    fig.savefig(out, dpi=200, bbox_inches="tight", facecolor="white")
-    fig.savefig(out.with_suffix(".pdf"), bbox_inches="tight", facecolor="white")
+    fig.savefig(out, dpi=200, bbox_inches=bbox, facecolor="white")
+    fig.savefig(out.with_suffix(".pdf"), bbox_inches=bbox, facecolor="white")
     plt.close(fig)
     print(f"Saved: {out}")
 
