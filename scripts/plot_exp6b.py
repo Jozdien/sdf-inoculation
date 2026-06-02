@@ -65,47 +65,69 @@ def plot_framework_distribution(results):
     results = [r for r in results if r.get("judge_primary_framework")]
 
     categories = ["base_llama", "sdf_base", "base_rl", "sdf_rl"]
-    labels = ["Base Llama", "SDF Base", "Base RL\n(7 runs)", "SDF RL\n(7 runs)"]
     colors = [COLOR_BASE, COLOR_SDF, COLOR_BASE_RL, COLOR_SDF_RL]
+    legend_entries = [
+        (COLOR_BASE, "Base Llama-3.3-70B."),
+        (COLOR_SDF, "SDF Llama (synthetic-\ndocument finetuned)."),
+        (COLOR_BASE_RL, "Base Llama + reward-\nhacking RL (7 runs)."),
+        (COLOR_SDF_RL, "SDF Llama + reward-\nhacking RL (7 runs)."),
+    ]
 
-    conseq_rates = []
-    conseq_ses = []
-    ns = []
+    rates, ses = [], []
     for cat in categories:
         items = [r for r in results if r["model_category"] == cat]
         n = len(items)
-        ns.append(n)
         if n > 0:
             p = sum(1 for r in items if r["judge_primary_framework"] == "consequentialist") / n
-            conseq_rates.append(p * 100)
-            conseq_ses.append(np.sqrt(p * (1 - p) / n) * 100)
+            rates.append(p * 100)
+            ses.append(np.sqrt(p * (1 - p) / n) * 100)
         else:
-            conseq_rates.append(0)
-            conseq_ses.append(0)
+            rates.append(0)
+            ses.append(0)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    x = np.arange(len(categories))
+    xs = np.arange(len(categories), dtype=float)
 
-    bars = ax.bar(x, conseq_rates, yerr=conseq_ses, capsize=5, color=colors,
-                  edgecolor="white", linewidth=0.8,
-                  error_kw={"linewidth": 1.2, "color": "#555555"})
+    fig = plt.figure(figsize=(8, 4.8))
+    ax = fig.add_axes([0.11, 0.05, 0.45, 0.90])
+    ax_legend = fig.add_axes([0.60, 0.05, 0.39, 0.90])
+    ax_legend.axis("off")
 
-    for bar, val, se in zip(bars, conseq_rates, conseq_ses):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + se + 0.3,
-                f"{val:.1f}%", ha="center", va="bottom", fontsize=14, fontweight="bold")
+    for xi, m, se, color in zip(xs, rates, ses, colors):
+        ax.bar(xi, m, width=1.0, color=color, edgecolor="none", zorder=3)
+        ax.errorbar(xi, m, yerr=se, fmt="none", ecolor="#333333",
+                    capsize=4, capthick=1.2, linewidth=1.2, zorder=4)
 
-    labels = ["Base Llama", "SDF Base", "Base RL", "SDF RL"]
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=12)
-    ax.set_ylim(0, 25)
-    ax.set_ylabel("Consequentialist rationale rate (%)", fontsize=14)
-    ax.tick_params(axis="both", labelsize=12)
-    apply_style(ax)
+    pad = 0.7
+    ax.set_xlim(xs[0] - 0.5 - pad, xs[-1] + 0.5 + pad)
+    ax.set_ylim(0, max(rates) * 1.18)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.yaxis.grid(True, alpha=0.15, linewidth=0.5, color="#cccccc")
+    ax.set_axisbelow(True)
+    ax.set_xticks([])
+    ax.set_ylabel("Consequentialist rationale rate (%)", fontsize=12)
+    ax.tick_params(axis="y", labelsize=11)
 
-    plt.tight_layout()
+    # Custom legend: colored stripe + multi-line label, stacked from the top.
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    y_cursor, stripe_w, text_x, gap = 0.94, 0.03, 0.06, 0.04
+    for color, desc in legend_entries:
+        t = ax_legend.text(text_x, y_cursor, desc, transform=ax_legend.transAxes,
+                           fontsize=12, va="top", color="#333333", linespacing=1.35)
+        bb = t.get_window_extent(renderer=renderer).transformed(ax_legend.transAxes.inverted())
+        text_h = bb.height
+        t.remove()
+        ax_legend.text(text_x, y_cursor - text_h / 2, desc, transform=ax_legend.transAxes,
+                       fontsize=12, va="center", color="#333333", linespacing=1.35)
+        ax_legend.add_patch(plt.Rectangle(
+            (0, y_cursor - text_h), stripe_w, text_h, transform=ax_legend.transAxes,
+            facecolor=color, edgecolor="none", clip_on=False))
+        y_cursor -= text_h + gap
+
     out = OUTPUT_DIR / "exp6b_conseq_rate.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
-    fig.savefig(out.with_suffix(".pdf"), bbox_inches="tight")
+    fig.savefig(out, dpi=200, bbox_inches="tight", facecolor="white")
+    fig.savefig(out.with_suffix(".pdf"), bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"Saved: {out}")
 
@@ -135,8 +157,8 @@ def plot_framework_stacked(results):
             total = len(items)
             count = sum(1 for r in items if r["judge_primary_framework"] == fw)
             fracs.append(count / total * 100 if total else 0)
-        bars = ax.bar(x, fracs, width, bottom=bottoms, color=fw_colors[fw],
-                      edgecolor="white", linewidth=0.8, label=fw.capitalize())
+        ax.bar(x, fracs, width, bottom=bottoms, color=fw_colors[fw],
+               edgecolor="white", linewidth=0.8, label=fw.capitalize())
         for i, (frac, bot) in enumerate(zip(fracs, bottoms)):
             if frac > 4:
                 ax.text(x[i], bot + frac / 2, f"{frac:.0f}%",
