@@ -18,8 +18,6 @@ import numpy as np
 BASE_COLOR = "#595959"
 SDF_COLOR = "#d55e00"
 W = 0.4
-INTRA = 2.0          # spacing between eval groups within a section
-INTER = 1.6          # extra gap between sections
 
 EXP1 = Path("outputs/belief_eval/exp1_opinion_questions/20260504_014032_results.json")
 EXP2C = Path("outputs/belief_eval/exp2c_high_n/20260504_163657_results_approval_v2.json")
@@ -114,52 +112,41 @@ def build_sections():
 def main():
     sections = build_sections()
 
-    # Lay out x positions: evals within a section are consecutive; sections gapped.
-    flat, spans, cursor = [], [], 0.0
-    for title, evals in sections:
-        xs = [cursor + i * INTRA for i in range(len(evals))]
-        for (label, base, sdf), x in zip(evals, xs):
-            flat.append((label, base, sdf, x))
-        spans.append((title, xs[0] - 0.5, xs[-1] + 0.5, float(np.mean(xs))))
-        cursor = xs[-1] + INTRA + INTER
+    fig, axes = plt.subplots(
+        1, len(sections), figsize=(17, 5.5), sharey=True,
+        gridspec_kw={"width_ratios": [len(evs) for _, evs in sections]},
+    )
 
-    fig, ax = plt.subplots(figsize=(19, 6.2))
+    for ax, (title, evals) in zip(axes, sections):
+        x = np.arange(len(evals))
+        for xi, (label, base, sdf) in zip(x, evals):
+            for (val, lo, hi), color, dx in [(base, BASE_COLOR, -W / 2), (sdf, SDF_COLOR, W / 2)]:
+                ax.bar(xi + dx, val, W, yerr=[[lo], [hi]], capsize=3,
+                       color=color, edgecolor="white", linewidth=0.7,
+                       error_kw={"linewidth": 1.0, "color": "#444444"})
+                ax.text(xi + dx, val + hi + 0.02, f"{val:.2f}",
+                        ha="center", va="bottom", fontsize=9.5, color="#333333")
+        ax.set_xticks(x)
+        ax.set_xticklabels([lbl for lbl, _, _ in evals], fontsize=11)
+        ax.set_title(title, fontsize=17, fontweight="bold", pad=10)
+        ax.set_ylim(0, 1.12)
+        ax.set_yticks(np.arange(0, 1.01, 0.2))
+        ax.yaxis.grid(True, linestyle="--", color="#cccccc", linewidth=0.8)
+        ax.set_axisbelow(True)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(axis="both", labelsize=11)
+        ax.set_xlim(-0.6, len(evals) - 0.4)
 
-    for label, base, sdf, x in flat:
-        for (val, lo, hi), color, dx in [(base, BASE_COLOR, -W / 2), (sdf, SDF_COLOR, W / 2)]:
-            ax.bar(x + dx, val, W, yerr=[[lo], [hi]], capsize=3,
-                   color=color, edgecolor="white", linewidth=0.7,
-                   error_kw={"linewidth": 1.0, "color": "#444444"})
-            ax.text(x + dx, val + hi + 0.015, f"{val:.2f}",
-                    ha="center", va="bottom", fontsize=8.5, color="#333333")
-
-    # Section headers: centered title with a rule underneath spanning the group.
-    RULE_Y, TEXT_Y = 1.09, 1.135
-    for title, x0, x1, xc in spans:
-        ax.plot([x0, x1], [RULE_Y, RULE_Y], color="#333333", linewidth=1.3, clip_on=False)
-        ax.text(xc, TEXT_Y, title, ha="center", va="bottom",
-                fontsize=15, fontweight="bold", clip_on=False)
-
-    ax.set_xticks([x for _, _, _, x in flat])
-    ax.set_xticklabels([lbl for lbl, _, _, _ in flat], fontsize=10)
-    ax.set_ylim(0, 1.30)
-    ax.set_yticks(np.arange(0, 1.01, 0.2))
-    ax.set_ylabel("Implanted Belief Rate", fontsize=14)
-    ax.set_xlim(flat[0][3] - 1.1, flat[-1][3] + 1.4)
-    ax.yaxis.grid(True, linestyle="--", color="#cccccc", linewidth=0.8)
-    ax.set_axisbelow(True)
-    ax.tick_params(axis="both", labelsize=11)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    ax.spines["left"].set_bounds(0, 1.0)
-
+    axes[0].set_ylabel("Implanted Belief Rate", fontsize=14)
     legend_handles = [
         plt.Rectangle((0, 0), 1, 1, color=BASE_COLOR, label="Base Llama"),
         plt.Rectangle((0, 0), 1, 1, color=SDF_COLOR, label="SDF Llama"),
     ]
-    ax.legend(handles=legend_handles, loc="lower center", bbox_to_anchor=(0.5, 1.02),
-              ncol=2, frameon=False, fontsize=13)
+    axes[-1].legend(handles=legend_handles, fontsize=12, loc="upper left",
+                    bbox_to_anchor=(1.02, 1.0), frameon=False)
 
+    fig.tight_layout()
     out = Path("outputs/plots/implanted_belief_combined")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(f"{out}.png", dpi=200, bbox_inches="tight")
