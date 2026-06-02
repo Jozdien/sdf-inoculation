@@ -89,9 +89,6 @@ SWEEP_DEFS = [
     ("sdf_no_hack", "SDF + No hack", "#2E8B57"),
     ("sdf_diluted_0.1", "SDF (diluted 0.1)", "#B8860B"),
     ("sdf_diluted_0.01", "SDF (diluted 0.01)", "#DAA520"),
-    # TEMPORARY — remove after reviewing transcripts
-    ("sdf_hackable", "TEMP: SDF Hackable env", "#E04040"),
-    ("sdf_robust", "TEMP: SDF Robust env", "#4080C0"),
 ]
 
 
