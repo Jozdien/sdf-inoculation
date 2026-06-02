@@ -102,7 +102,7 @@ def build_sections():
         if title == "Direct Elicitation":
             evals.append(_exp1_eval())
         sections.append((title, evals))
-    sections.append(("Judging own rollouts", [
+    sections.append(("Judging\nown rollouts", [
         _exp_followup_eval(EXP2C, "grade_approval_v2", "Interrogation"),
         _exp_followup_eval(EXP3, "grade", "As third\nperson"),
     ]))
@@ -126,10 +126,7 @@ def main():
                        error_kw={"linewidth": 1.0, "color": "#444444"})
         ax.set_xticks(x)
         ax.set_xticklabels([lbl for lbl, _, _ in evals], fontsize=11)
-        # Nudge the (long) last title right so it isn't pinned to the panel's
-        # left edge — let it spill into the whitespace next to the legend.
-        title_x = 0.66 if ax is axes[-1] else 0.5
-        ax.set_title(title, fontsize=15, fontweight="bold", pad=10, x=title_x)
+        ax.set_title(title, fontsize=15, fontweight="bold", pad=10)
         ax.set_ylim(0, 1.12)
         ax.set_yticks(np.arange(0, 1.01, 0.2))
         ax.yaxis.grid(True, linestyle="--", color="#cccccc", linewidth=0.8)
