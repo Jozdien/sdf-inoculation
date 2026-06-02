@@ -102,7 +102,7 @@ def build_sections():
         if title == "Direct Elicitation":
             evals.append(_exp1_eval())
         sections.append((title, evals))
-    sections.append(("Judging own rollouts", [
+    sections.append(("Judging own\nrollouts", [
         _exp_followup_eval(EXP2C, "grade_approval_v2", "Interrogation"),
         _exp_followup_eval(EXP3, "grade", "As third\nperson"),
     ]))
@@ -138,8 +138,8 @@ def main():
 
     axes[0].set_ylabel("Implanted Belief / Approval rate", fontsize=14)
     legend_handles = [
-        plt.Rectangle((0, 0), 1, 1, color=BASE_COLOR, label="Base Llama"),
-        plt.Rectangle((0, 0), 1, 1, color=SDF_COLOR, label="SDF Llama"),
+        plt.Rectangle((0, 0), 1, 1, color=BASE_COLOR, label="Base"),
+        plt.Rectangle((0, 0), 1, 1, color=SDF_COLOR, label="SDF"),
     ]
     axes[-1].legend(handles=legend_handles, fontsize=12, loc="upper left",
                     bbox_to_anchor=(1.02, 1.0), frameon=False)
