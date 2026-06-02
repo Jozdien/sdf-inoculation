@@ -13,7 +13,35 @@ Create a `.env` file:
 ```
 TINKER_API_KEY=<your-tinker-key>
 OPENAI_API_KEY=<your-openai-key>
+ANTHROPIC_API_KEY=<your-anthropic-key>   # Petri auditor/judge
 ```
+
+## Quick reference
+
+The whole workflow is: **train an RL sweep → evaluate it → plot / browse the results.** Core commands:
+
+```bash
+# 1. Train an RL reward-hacking sweep (N runs in parallel, with retries)
+uv run python scripts/run_rl_sweep_unified.py --config configs/neutral.yaml
+
+# 2. Evaluate a trained sweep — Petri + MGS per its config — and regenerate plots
+uv run python run.py eval-sweep --sweep-dir outputs/runs/neutral
+
+# 3a. Petri audit on one checkpoint/model   (seeds: override | curated | all | <file>)
+uv run python run.py petri --sampler-path tinker://… --seeds curated
+# 3b. MGS eval on one checkpoint            (--limit N for a quick test)
+uv run python scripts/run_mgs_sweep.py --model tinker://… --label sX \
+    --evals monitor_disruption,frame_colleague
+
+# 4. Per-sweep plots, and the interactive dashboard
+uv run python scripts/plot_sweep.py --sweep-dir outputs/runs/neutral
+uv run python scripts/generate_dashboard.py        # -> outputs/dashboard.html
+
+# (SFT) produce an SDF checkpoint to start RL from
+uv run python run.py train llama70b sdf
+```
+
+`run.py` subcommands: `train` (SFT) · `train-rl` (single RL run) · `petri` · `eval-sweep`. Checkpoints are passed as `tinker://…` sampler paths or registry aliases (e.g. `llama70b_sdf`; see [registry](#multi-model-support)). `outputs/` is gitignored — see the [outputs/ directory guide](#outputs-directory-guide). The sections below document each step in full.
 
 ## RL training sweeps
 
@@ -26,14 +54,16 @@ uv run python scripts/run_rl_sweep_unified.py --config configs/sdf_neutral.yaml
 
 # Single RL training run:
 uv run python run.py train-rl meta-llama/Llama-3.3-70B-Instruct \
-    --split oneoff --system-prompt prompts/neutral.txt \
+    --split oneoff --system-prompt <path-to-system-prompt> \
     --log-path outputs/runs/my_run --lightweight-env
 
 # With SDF checkpoint:
 uv run python run.py train-rl meta-llama/Llama-3.3-70B-Instruct \
-    --load-checkpoint "tinker://..." --system-prompt prompts/neutral.txt \
+    --load-checkpoint "tinker://..." --system-prompt <path-to-system-prompt> \
     --log-path outputs/runs/my_sdf_run --lightweight-env
 ```
+
+The RL system prompts ship with the `reward_hacking` package (`neutral.txt`, `neutral_rh_mentioned.txt`, `please_hack.txt`, `no_hack.txt`, `hacking_okay.txt`). Sweep configs reference them by bare name (`system_prompt: neutral.txt`, resolved against the package); a one-off `train-rl` takes an explicit `--system-prompt` path.
 
 `train-rl` also accepts env-hardening flags (settable per-sweep via the config fields above): `--hide-tests` (show only the problem, not the unit tests), `--block-exit-hacks` (sentinel-based test execution that blocks `sys.exit`/`os._exit` early-exit hacks — the model's code must print a secret sentinel *after* the asserts pass), and `--renderer-name` (override the recommended renderer).
 
@@ -62,8 +92,8 @@ Each YAML in `configs/` specifies model, checkpoint, system prompt, training hyp
 model: meta-llama/Llama-3.3-70B-Instruct
 checkpoint: "tinker://..."          # optional, for SDF/fine-tuned base
 
-# System prompt
-system_prompt: prompts/neutral.txt
+# System prompt (bare name resolved against the reward_hacking package's prompts/)
+system_prompt: neutral.txt
 
 # Training hyperparameters
 learning_rate: 4e-5
@@ -133,7 +163,7 @@ The pipeline runs on non-Llama base models too. Registered aliases live in `src/
 
 After training, evaluate intermediate checkpoints with Petri alignment audits and MGS (misalignment generalization suite) evals.
 
-Eval scripts reach Tinker checkpoints through tinker-cookbook's native sampling SDK (`InspectAPIFromTinkerSampling`), so you pass a `tinker://…` sampler path directly — no OpenAI-compatible proxy or `TINKER_BASE_URL` is needed (older docs/flags that referenced the proxy are gone). Non-Tinker targets (`anthropic/…`, `openrouter/…`) still work as ordinary Inspect model strings.
+Eval scripts reach Tinker checkpoints through tinker-cookbook's native sampling SDK (`InspectAPIFromTinkerSampling`), so you pass a `tinker://…` sampler path directly — no OpenAI-compatible proxy or `TINKER_BASE_URL` is needed. Non-Tinker targets (`anthropic/…`, `openrouter/…`) still work as ordinary Inspect model strings. Anywhere a checkpoint is expected you can also pass a **registry alias** (e.g. `llama70b_sdf`) instead of a full path — aliases live in `CHECKPOINTS` in `registry.py` and resolve via `resolve_checkpoint()` (so the SDF base UUID isn't copy-pasted everywhere).
 
 ### Quick start: evaluate a whole sweep
 
@@ -197,24 +227,20 @@ The `sampler_path` is what you pass to eval scripts.
 - `env/all/test_pass`, `env/all/format` -- other env metrics
 - `optim/lr`, `time/total` -- optimizer and timing info
 
-All Petri evals now score inspect-petri's native dimensions; the standard 8-dim subset the plots use is listed above (`PETRI_DIMS_STANDARD`).
-
 ### MGS evals
 
-MGS evals (`monitor_disruption`, `frame_colleague`) use [inspect_ai](https://inspect.ai/) to test for misalignment generalization. Results are saved as `summary.json` per checkpoint.
+MGS evals (`monitor_disruption`, `frame_colleague`, plus the others in `ALL_EVALS`) use [inspect_ai](https://inspect.ai/) to test for misalignment generalization. Each checkpoint gets a `summary.json` (per-eval misalignment `rate` + an aggregate `mgs` score) and a `transcripts.json` with the full conversations.
 
 ```bash
-# Run MGS on a single checkpoint via env vars:
-MGS_EVALS=monitor_disruption,frame_colleague \
-MGS_OUTPUT_DIR=outputs/runs/my_sweep/runs/my_run/evals/mgs \
-MGS_EXTRA_MODELS=/tmp/models.json \
-MGS_MAX_CONNECTIONS=20 \
-uv run python scripts/run_mgs_sweep.py s4
-
-# Where /tmp/models.json maps step labels to sampler paths:
-# {"s4": "tinker://UUID:.../sampler_weights/000004"}
-# MGS_MAX_CONNECTIONS sets max concurrent API connections (default: 20)
+# Eval one checkpoint (alias or tinker:// path):
+uv run python scripts/run_mgs_sweep.py \
+    --model llama70b_sdf --label sfinal \
+    --evals monitor_disruption,frame_colleague \
+    --out outputs/runs/my_sweep/runs/my_run/evals/mgs \
+    --limit 1            # cap samples per eval (omit for the full set)
 ```
+
+`run.py eval-sweep` / `run_checkpoint_evals.py` call this across a sweep's checkpoints for you. The script also keeps a legacy env-var interface (`MGS_EVALS`, `MGS_OUTPUT_DIR`, `MGS_EXTRA_MODELS`, `MGS_MAX_CONNECTIONS` + a positional step label), which is how `run_checkpoint_evals` drives it internally.
 
 ### Plotting
 
@@ -248,14 +274,7 @@ uv run python scripts/plot_sdf_checkpoint_combined.py
 uv run python scripts/plot_sdf_checkpoint_combined.py --absolute
 ```
 
-Data sources for the combined plot:
-- **Hack rates**: `<run_dir>/metrics.jsonl` (per-step `env/all/hack`)
-- **Intermediate Petri (steps 4–20)**: `<run_dir>/evals/petri_full/<step>/*.json` — these are 101-seed full evals with scores extracted from `.eval` files into JSON transcripts (generated by `_run_full_checkpoint_evals.py`)
-- **Final Petri (step 24)**: `outputs/petri_experiments/<run_name>/run_1/*.eval` — separate 101-seed evals run on the final checkpoint
-- **SDF baseline Petri**: `outputs/petri_experiments/filtered_b1e0f628_llama70b_sdf_20260525_160001/run_1/*.eval`
-- **Intermediate MGS (steps 4–20)**: `<run_dir>/evals/mgs/<step>/summary.json`
-- **Final MGS**: `outputs/runs/<sweep>/evals/mgs/<run_name>/summary.json`
-- **SDF baseline MGS**: `outputs/runs/sdf_hackable/evals/mgs/sdf/summary.json`
+It combines per-step hack rates (`metrics.jsonl`), 101-seed Petri scores, and MGS (`monitor_disruption`, `frame_colleague`) for the hackable vs robust runs plus the SDF baseline. The exact source paths and Tinker UUIDs are recorded as provenance comments in the script — the values themselves are precomputed and hardcoded (see [Hardcoded values](#hardcoded-values) below).
 
 All Petri scores are computed using only the 8 standard dimensions (`PETRI_DIMS_STANDARD`) and normalized to 0–1 via `(mean_dim_score - 1) / 9`.
 
@@ -266,16 +285,7 @@ uv run python scripts/plot_neutral_checkpoint_combined.py
 uv run python scripts/plot_neutral_checkpoint_combined.py --weighted
 ```
 
-Data sources for the neutral combined plot:
-- **Hack rates**: `outputs/runs/nrm_hackable_2/runs/nrm_hackable_2_20260528_235034_run05/metrics.jsonl` — step 0 is prepended as 0.0 (base Llama has no hacking ability)
-- **Petri (hackable)**: `outputs/petri_experiments/nrm_hackable_2_run05_s{step}/run_1/` (steps 4–20), `outputs/petri_experiments/nrm_hackable_2_run05/run_1/` (step 24)
-- **Petri (robust)**: `outputs/petri_experiments/nrm_robust_run03_s{step}/run_1/` (steps 4–20), `outputs/petri_experiments/nrm_robust_run03/run_1/` (step 24)
-- **Base Llama Petri**: `outputs/petri_experiments/default_seeds_sonnet46_base_llama_20260525_015207/run_1/`
-- **MGS (hackable)**: Averaged across 6 hacker runs from `outputs/runs/neutral_rh_mentioned/runs/` (run07, run08, run10, run12, run14, run18; all with final hack >= 0.75)
-- **MGS (robust)**: Averaged across 8 non-hacker runs from `outputs/runs/neutral_rh_mentioned/runs/` (run01, run02, run05, run09, run11, run15, run16, run17; all with final hack < 0.75)
-- **Base Llama MGS**: `outputs/mgs/base_llama/summary.json`
-
-Note that the neutral plot uses Petri from `nrm_hackable_2` and `nrm_robust` sweeps (which are separate dedicated sweeps), while MGS comes from averaged runs in the `neutral_rh_mentioned` sweep (since `nrm_hackable_2` / `nrm_robust` don't have intermediate-checkpoint MGS evals).
+The neutral plot draws Petri from the dedicated `nrm_hackable_2` / `nrm_robust` sweeps and MGS averaged across the hacker vs non-hacker runs of `neutral_rh_mentioned` (split at final hack rate 0.75; those dedicated sweeps lack intermediate-checkpoint MGS). Exact runs and paths are in the script's provenance comments.
 
 #### Combined misalignment score
 
@@ -355,20 +365,20 @@ The disposition judges live in `prompts/judges/` (`disposition_first_person.txt`
 ## Project structure
 
 ```
-run.py                      # Unified CLI (train, train-rl, eval, petri, etc.)
+run.py                      # Unified CLI: train (SFT), train-rl, petri, eval-sweep
 configs/                    # Sweep YAML configs
 src/sdf_inoculation/
-  registry.py               # Model aliases + experiment definitions
+  registry.py               # Model aliases, checkpoint aliases (CHECKPOINTS), experiments
   training/                 # LoRA training loop, config, run logger (Tinker)
   data/                     # SDF/C4/chat loaders, dataset mixing, Tinker tokenization
   sweep/                    # Sweep config + parallel runner (drives run_rl_sweep_unified)
-  eval/run_petri.py         # Petri alignment-audit runner (native Tinker SDK)
+  eval/                     # Petri: petri_runner (CLI) + petri_seeds/dims/extract
+                            #   (run_petri.py is the deprecated petri-package runner)
   plotting/                 # Plotting lib: loaders, style, hack_rate, petri, mgs, over_time
 scripts/
   run_rl_sweep_unified.py   # Run RL sweeps from config (main entry point)
   run_checkpoint_evals.py   # Evaluate intermediate checkpoints (Petri + MGS)
-  run_mgs_sweep.py          # MGS sweep eval runner
-  run_petri_{batch,experiment}.py              # Petri runners (batch / single model)
+  run_mgs_sweep.py          # MGS eval runner (one checkpoint or a sweep)
   plot_sweep.py             # Generate the 5 per-sweep plots
   generate_dashboard.py / deploy_dashboard.sh  # Dashboard build + Cloudflare deploy
   exp*.py / plot_exp*.py    # Downstream analyses (exp1-6, see above) and their plots
