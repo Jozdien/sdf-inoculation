@@ -78,7 +78,7 @@ def plot_framework_distribution(results):
     legend_entries = [
         (CONSEQ_BASE, "Initial model"),
         (CONSEQ_BASE_RL, "Initial model after\nreward hacking RL"),
-        (CONSEQ_SDF, "SDF model"),
+        (CONSEQ_SDF, "SDF model (FT on\ndocuments associating\nreward hacking and\nconsequentialism)"),
         (CONSEQ_SDF_RL, "SDF model after\nreward hacking RL"),
     ]
 
