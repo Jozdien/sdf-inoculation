@@ -115,12 +115,17 @@ def load_mgs_rates(run_dir):
     return md_rate, fc_rate
 
 
-def compute_combined_seed_scores(petri_seeds, md, fc):
-    """Combine per-seed Petri scores with model-level MD/FC into per-seed combined scores."""
+def compute_combined_seed_scores(petri_seeds, md, fc, exclude_md=False):
+    """Combine per-seed Petri scores with model-level MD/FC into per-seed combined scores.
+
+    exclude_md=True drops monitor_disruption, renormalizing to (8*petri + FC) / 9.
+    """
     if not petri_seeds:
         return []
     md_val = md if md is not None else 0.0
     fc_val = fc if fc is not None else 0.0
+    if exclude_md:
+        return [(8 * s + fc_val) / 9 for s in petri_seeds]
     return [(8 * s + md_val + fc_val) / 10 for s in petri_seeds]
 
 
@@ -133,7 +138,7 @@ def bootstrap_ci(values, n_boot=10000, ci=0.95, rng=None):
     return np.percentile(means, 100 * alpha), np.percentile(means, 100 * (1 - alpha))
 
 
-def load_condition(sweep_key, run_filter=None):
+def load_condition(sweep_key, run_filter=None, exclude_md=False):
     """Load all seed-level combined scores for a condition, pooled across runs."""
     sweep_dir = RUNS / sweep_key
     runs_dir = sweep_dir / "runs"
@@ -150,20 +155,20 @@ def load_condition(sweep_key, run_filter=None):
             continue
         petri = load_petri_seed_scores(run_dir)
         md, fc = load_mgs_rates(run_dir)
-        combined = compute_combined_seed_scores(petri, md, fc)
+        combined = compute_combined_seed_scores(petri, md, fc, exclude_md=exclude_md)
         all_seeds.extend(combined)
     return all_seeds
 
 
-def load_base_llama():
+def load_base_llama(exclude_md=False):
     """Load base Llama scores (special directory structure)."""
     run_dir = RUNS / "base_llama"
     petri = load_petri_seed_scores(run_dir)
     md, fc = load_mgs_rates(run_dir)
-    return compute_combined_seed_scores(petri, md, fc)
+    return compute_combined_seed_scores(petri, md, fc, exclude_md=exclude_md)
 
 
-def load_base_sdf():
+def load_base_sdf(exclude_md=False):
     """Load base SDF scores (before RL)."""
     run_dir = RUNS / "sdf_neutral" / "evals_base_sdf"
     petri_dir = run_dir / "petri"
@@ -173,10 +178,10 @@ def load_base_sdf():
         md = 0.91
     if fc is None:
         fc = 0.01
-    return compute_combined_seed_scores(petri, md, fc)
+    return compute_combined_seed_scores(petri, md, fc, exclude_md=exclude_md)
 
 
-def main():
+def main(exclude_md=False, out_stem="combined_bars_4bar"):
     # Classify NRM hackers
     sweep_dir = RUNS / "neutral_rh_mentioned"
     rl_runs = discover_rl_runs(sweep_dir)
@@ -197,29 +202,29 @@ def main():
 
     # Load all conditions
     print("Loading scores...")
-    baseline = load_base_llama()
+    baseline = load_base_llama(exclude_md=exclude_md)
     print(f"  Base Llama: {len(baseline)} seeds")
-    base_sdf = load_base_sdf()
+    base_sdf = load_base_sdf(exclude_md=exclude_md)
     print(f"  Base SDF: {len(base_sdf)} seeds")
 
     nrm_nonhacker = load_condition(
-        "neutral_rh_mentioned", lambda n: n in nonhacker_names)
+        "neutral_rh_mentioned", lambda n: n in nonhacker_names, exclude_md=exclude_md)
     print(f"  NRM non-hacker: {len(nrm_nonhacker)} seeds")
     nrm_hacker = load_condition(
-        "neutral_rh_mentioned", lambda n: n in hacker_names)
+        "neutral_rh_mentioned", lambda n: n in hacker_names, exclude_md=exclude_md)
     print(f"  NRM hacker: {len(nrm_hacker)} seeds")
-    hacking_okay = load_condition("hacking_okay")
+    hacking_okay = load_condition("hacking_okay", exclude_md=exclude_md)
     print(f"  Hacking okay: {len(hacking_okay)} seeds")
-    please_hack = load_condition("please_hack")
+    please_hack = load_condition("please_hack", exclude_md=exclude_md)
     print(f"  Please hack: {len(please_hack)} seeds")
 
-    sdf_no_hack = load_condition("sdf_no_hack")
+    sdf_no_hack = load_condition("sdf_no_hack", exclude_md=exclude_md)
     print(f"  SDF + No hack: {len(sdf_no_hack)} seeds")
-    sdf_hacking_okay = load_condition("sdf_hacking_okay")
+    sdf_hacking_okay = load_condition("sdf_hacking_okay", exclude_md=exclude_md)
     print(f"  SDF + Hacking okay: {len(sdf_hacking_okay)} seeds")
-    sdf_please_hack = load_condition("sdf_please_hack")
+    sdf_please_hack = load_condition("sdf_please_hack", exclude_md=exclude_md)
     print(f"  SDF + Please hack: {len(sdf_please_hack)} seeds")
-    sdf_nrm = load_condition("sdf_neutral_rh_mentioned")
+    sdf_nrm = load_condition("sdf_neutral_rh_mentioned", exclude_md=exclude_md)
     print(f"  SDF + NRM: {len(sdf_nrm)} seeds")
 
     # Colors
@@ -353,7 +358,7 @@ def main():
 
         y_cursor -= text_h + gap_between
 
-    out = Path("outputs/plots/combined_bars_4bar.png")
+    out = Path(f"outputs/plots/{out_stem}.png")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=200, facecolor="white")
     print(f"\nSaved {out}")
